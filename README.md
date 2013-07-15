@@ -1,4 +1,4 @@
 digger
 ======
 
-The JQuery container database api for digger.io
+JQuery container api for digger.io

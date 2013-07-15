@@ -1,0 +1,44 @@
+{
+  "name": "digger",
+  "version": "0.0.1",
+  "description": "JQuery container api for digger.io",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "grunt test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/binocarlos/digger.git"
+  },
+  "keywords": [
+    "database",
+    "jquery"
+  ],
+  "author": "Kai Davenport",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "gitHead": "906e653206e9ba81c68fd9c89a46f16f98911594",
+  "bugs": {
+    "url": "https://github.com/binocarlos/digger/issues"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.1",
+    "grunt-exec": "*",
+    "grunt-contrib-jshint": "~0.4.1",
+    "grunt-mocha-test": "~0.2.2",
+    "grunt-contrib-concat": "~0.1.3",
+    "grunt-contrib-uglify": "~0.2.0",
+    "grunt-contrib-watch": "~0.3.1",
+    "chai": "*",
+    "mocha": "*",
+    "grunt-browserify": "~1.2.0"
+  },
+  "dependencies": {
+    "digger-utils": "0.0.1",
+    "lodash": "~1.3.1",
+    "async": "~0.2.9",
+    "xtend": "~2.0.6",
+    "xmldom": "~0.1.16",
+    "q": "~0.9.6"
+  }
+}
