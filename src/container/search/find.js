@@ -16,8 +16,6 @@
   Module dependencies.
 */
 
-var _ = require('lodash');
-
 /*
   Quarry.io - Find
   ----------------
@@ -75,7 +73,7 @@ function factory(searchfn){
       B -> A
       
     */
-    _.each(selectors.reverse(), function(stage){
+    selectors.reverse().forEach(function(stage){
 
       final_state.next();
 
@@ -93,14 +91,14 @@ function factory(searchfn){
         now we have the phases - these can be done in parallel
         
       */
-      _.each(stage.phases, function(phase){
+      stage.phases.forEach(function(phase){
 
         
         var phase_context = context;
 
         var selector_state = new State(phase);
 
-        _.each(phase, function(selector){
+        phase.forEach(function(selector){
 
           selector_state.next();
 

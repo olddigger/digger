@@ -18,7 +18,7 @@ module.exports = function(grunt) {
       }
     },
     browserify: {
-      'build/container.js': ['src/container/browserapi.js']
+      'build/container.js': ['src/container/xmlapi.js']
     },
     uglify: {
       options: {
