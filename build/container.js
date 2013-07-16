@@ -1,4 +1,20 @@
 ;(function(e,t,n){function i(n,s){if(!t[n]){if(!e[n]){var o=typeof require=="function"&&require;if(!s&&o)return o(n,!0);if(r)return r(n,!0);throw new Error("Cannot find module '"+n+"'")}var u=t[n]={exports:{}};e[n][0].call(u.exports,function(t){var r=e[n][1][t];return i(r?r:t)},u,u.exports)}return t[n].exports}var r=typeof require=="function"&&require;for(var s=0;s<n.length;s++)i(n[s]);return i})({1:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+module.exports = require('./supplychain');
+},{"./supplychain":2}],3:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -52,7 +68,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],2:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function(process){if (!process.EventEmitter) process.EventEmitter = function () {};
 
 var EventEmitter = exports.EventEmitter = process.EventEmitter;
@@ -238,34 +254,1516 @@ EventEmitter.prototype.listeners = function(type) {
 };
 
 })(require("__browserify_process"))
-},{"__browserify_process":1}],3:[function(require,module,exports){
+},{"__browserify_process":3}],5:[function(require,module,exports){
+var events = require('events');
+
+exports.isArray = isArray;
+exports.isDate = function(obj){return Object.prototype.toString.call(obj) === '[object Date]'};
+exports.isRegExp = function(obj){return Object.prototype.toString.call(obj) === '[object RegExp]'};
+
+
+exports.print = function () {};
+exports.puts = function () {};
+exports.debug = function() {};
+
+exports.inspect = function(obj, showHidden, depth, colors) {
+  var seen = [];
+
+  var stylize = function(str, styleType) {
+    // http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+    var styles =
+        { 'bold' : [1, 22],
+          'italic' : [3, 23],
+          'underline' : [4, 24],
+          'inverse' : [7, 27],
+          'white' : [37, 39],
+          'grey' : [90, 39],
+          'black' : [30, 39],
+          'blue' : [34, 39],
+          'cyan' : [36, 39],
+          'green' : [32, 39],
+          'magenta' : [35, 39],
+          'red' : [31, 39],
+          'yellow' : [33, 39] };
+
+    var style =
+        { 'special': 'cyan',
+          'number': 'blue',
+          'boolean': 'yellow',
+          'undefined': 'grey',
+          'null': 'bold',
+          'string': 'green',
+          'date': 'magenta',
+          // "name": intentionally not styling
+          'regexp': 'red' }[styleType];
+
+    if (style) {
+      return '\033[' + styles[style][0] + 'm' + str +
+             '\033[' + styles[style][1] + 'm';
+    } else {
+      return str;
+    }
+  };
+  if (! colors) {
+    stylize = function(str, styleType) { return str; };
+  }
+
+  function format(value, recurseTimes) {
+    // Provide a hook for user-specified inspect functions.
+    // Check that value is an object with an inspect function on it
+    if (value && typeof value.inspect === 'function' &&
+        // Filter out the util module, it's inspect function is special
+        value !== exports &&
+        // Also filter out any prototype objects using the circular check.
+        !(value.constructor && value.constructor.prototype === value)) {
+      return value.inspect(recurseTimes);
+    }
+
+    // Primitive types cannot have properties
+    switch (typeof value) {
+      case 'undefined':
+        return stylize('undefined', 'undefined');
+
+      case 'string':
+        var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                                 .replace(/'/g, "\\'")
+                                                 .replace(/\\"/g, '"') + '\'';
+        return stylize(simple, 'string');
+
+      case 'number':
+        return stylize('' + value, 'number');
+
+      case 'boolean':
+        return stylize('' + value, 'boolean');
+    }
+    // For some reason typeof null is "object", so special case here.
+    if (value === null) {
+      return stylize('null', 'null');
+    }
+
+    // Look up the keys of the object.
+    var visible_keys = Object_keys(value);
+    var keys = showHidden ? Object_getOwnPropertyNames(value) : visible_keys;
+
+    // Functions without properties can be shortcutted.
+    if (typeof value === 'function' && keys.length === 0) {
+      if (isRegExp(value)) {
+        return stylize('' + value, 'regexp');
+      } else {
+        var name = value.name ? ': ' + value.name : '';
+        return stylize('[Function' + name + ']', 'special');
+      }
+    }
+
+    // Dates without properties can be shortcutted
+    if (isDate(value) && keys.length === 0) {
+      return stylize(value.toUTCString(), 'date');
+    }
+
+    var base, type, braces;
+    // Determine the object type
+    if (isArray(value)) {
+      type = 'Array';
+      braces = ['[', ']'];
+    } else {
+      type = 'Object';
+      braces = ['{', '}'];
+    }
+
+    // Make functions say that they are functions
+    if (typeof value === 'function') {
+      var n = value.name ? ': ' + value.name : '';
+      base = (isRegExp(value)) ? ' ' + value : ' [Function' + n + ']';
+    } else {
+      base = '';
+    }
+
+    // Make dates with properties first say the date
+    if (isDate(value)) {
+      base = ' ' + value.toUTCString();
+    }
+
+    if (keys.length === 0) {
+      return braces[0] + base + braces[1];
+    }
+
+    if (recurseTimes < 0) {
+      if (isRegExp(value)) {
+        return stylize('' + value, 'regexp');
+      } else {
+        return stylize('[Object]', 'special');
+      }
+    }
+
+    seen.push(value);
+
+    var output = keys.map(function(key) {
+      var name, str;
+      if (value.__lookupGetter__) {
+        if (value.__lookupGetter__(key)) {
+          if (value.__lookupSetter__(key)) {
+            str = stylize('[Getter/Setter]', 'special');
+          } else {
+            str = stylize('[Getter]', 'special');
+          }
+        } else {
+          if (value.__lookupSetter__(key)) {
+            str = stylize('[Setter]', 'special');
+          }
+        }
+      }
+      if (visible_keys.indexOf(key) < 0) {
+        name = '[' + key + ']';
+      }
+      if (!str) {
+        if (seen.indexOf(value[key]) < 0) {
+          if (recurseTimes === null) {
+            str = format(value[key]);
+          } else {
+            str = format(value[key], recurseTimes - 1);
+          }
+          if (str.indexOf('\n') > -1) {
+            if (isArray(value)) {
+              str = str.split('\n').map(function(line) {
+                return '  ' + line;
+              }).join('\n').substr(2);
+            } else {
+              str = '\n' + str.split('\n').map(function(line) {
+                return '   ' + line;
+              }).join('\n');
+            }
+          }
+        } else {
+          str = stylize('[Circular]', 'special');
+        }
+      }
+      if (typeof name === 'undefined') {
+        if (type === 'Array' && key.match(/^\d+$/)) {
+          return str;
+        }
+        name = JSON.stringify('' + key);
+        if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+          name = name.substr(1, name.length - 2);
+          name = stylize(name, 'name');
+        } else {
+          name = name.replace(/'/g, "\\'")
+                     .replace(/\\"/g, '"')
+                     .replace(/(^"|"$)/g, "'");
+          name = stylize(name, 'string');
+        }
+      }
+
+      return name + ': ' + str;
+    });
+
+    seen.pop();
+
+    var numLinesEst = 0;
+    var length = output.reduce(function(prev, cur) {
+      numLinesEst++;
+      if (cur.indexOf('\n') >= 0) numLinesEst++;
+      return prev + cur.length + 1;
+    }, 0);
+
+    if (length > 50) {
+      output = braces[0] +
+               (base === '' ? '' : base + '\n ') +
+               ' ' +
+               output.join(',\n  ') +
+               ' ' +
+               braces[1];
+
+    } else {
+      output = braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+    }
+
+    return output;
+  }
+  return format(obj, (typeof depth === 'undefined' ? 2 : depth));
+};
+
+
+function isArray(ar) {
+  return ar instanceof Array ||
+         Array.isArray(ar) ||
+         (ar && ar !== Object.prototype && isArray(ar.__proto__));
+}
+
+
+function isRegExp(re) {
+  return re instanceof RegExp ||
+    (typeof re === 'object' && Object.prototype.toString.call(re) === '[object RegExp]');
+}
+
+
+function isDate(d) {
+  if (d instanceof Date) return true;
+  if (typeof d !== 'object') return false;
+  var properties = Date.prototype && Object_getOwnPropertyNames(Date.prototype);
+  var proto = d.__proto__ && Object_getOwnPropertyNames(d.__proto__);
+  return JSON.stringify(proto) === JSON.stringify(properties);
+}
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+exports.log = function (msg) {};
+
+exports.pump = null;
+
+var Object_keys = Object.keys || function (obj) {
+    var res = [];
+    for (var key in obj) res.push(key);
+    return res;
+};
+
+var Object_getOwnPropertyNames = Object.getOwnPropertyNames || function (obj) {
+    var res = [];
+    for (var key in obj) {
+        if (Object.hasOwnProperty.call(obj, key)) res.push(key);
+    }
+    return res;
+};
+
+var Object_create = Object.create || function (prototype, properties) {
+    // from es5-shim
+    var object;
+    if (prototype === null) {
+        object = { '__proto__' : null };
+    }
+    else {
+        if (typeof prototype !== 'object') {
+            throw new TypeError(
+                'typeof prototype[' + (typeof prototype) + '] != \'object\''
+            );
+        }
+        var Type = function () {};
+        Type.prototype = prototype;
+        object = new Type();
+        object.__proto__ = prototype;
+    }
+    if (typeof properties !== 'undefined' && Object.defineProperties) {
+        Object.defineProperties(object, properties);
+    }
+    return object;
+};
+
+exports.inherits = function(ctor, superCtor) {
+  ctor.super_ = superCtor;
+  ctor.prototype = Object_create(superCtor.prototype, {
+    constructor: {
+      value: ctor,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    }
+  });
+};
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (typeof f !== 'string') {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(exports.inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j': return JSON.stringify(args[i++]);
+      default:
+        return x;
+    }
+  });
+  for(var x = args[i]; i < len; x = args[++i]){
+    if (x === null || typeof x !== 'object') {
+      str += ' ' + x;
+    } else {
+      str += ' ' + exports.inspect(x);
+    }
+  }
+  return str;
+};
+
+},{"events":4}],6:[function(require,module,exports){
+var punycode = { encode : function (s) { return s } };
+
+exports.parse = urlParse;
+exports.resolve = urlResolve;
+exports.resolveObject = urlResolveObject;
+exports.format = urlFormat;
+
+function arrayIndexOf(array, subject) {
+    for (var i = 0, j = array.length; i < j; i++) {
+        if(array[i] == subject) return i;
+    }
+    return -1;
+}
+
+var objectKeys = Object.keys || function objectKeys(object) {
+    if (object !== Object(object)) throw new TypeError('Invalid object');
+    var keys = [];
+    for (var key in object) if (object.hasOwnProperty(key)) keys[keys.length] = key;
+    return keys;
+}
+
+// Reference: RFC 3986, RFC 1808, RFC 2396
+
+// define these here so at least they only have to be
+// compiled once on the first module load.
+var protocolPattern = /^([a-z0-9.+-]+:)/i,
+    portPattern = /:[0-9]+$/,
+    // RFC 2396: characters reserved for delimiting URLs.
+    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
+    // RFC 2396: characters not allowed for various reasons.
+    unwise = ['{', '}', '|', '\\', '^', '~', '[', ']', '`'].concat(delims),
+    // Allowed by RFCs, but cause of XSS attacks.  Always escape these.
+    autoEscape = ['\''],
+    // Characters that are never ever allowed in a hostname.
+    // Note that any invalid chars are also handled, but these
+    // are the ones that are *expected* to be seen, so we fast-path
+    // them.
+    nonHostChars = ['%', '/', '?', ';', '#']
+      .concat(unwise).concat(autoEscape),
+    nonAuthChars = ['/', '@', '?', '#'].concat(delims),
+    hostnameMaxLen = 255,
+    hostnamePartPattern = /^[a-zA-Z0-9][a-z0-9A-Z_-]{0,62}$/,
+    hostnamePartStart = /^([a-zA-Z0-9][a-z0-9A-Z_-]{0,62})(.*)$/,
+    // protocols that can allow "unsafe" and "unwise" chars.
+    unsafeProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that never have a hostname.
+    hostlessProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that always have a path component.
+    pathedProtocol = {
+      'http': true,
+      'https': true,
+      'ftp': true,
+      'gopher': true,
+      'file': true,
+      'http:': true,
+      'ftp:': true,
+      'gopher:': true,
+      'file:': true
+    },
+    // protocols that always contain a // bit.
+    slashedProtocol = {
+      'http': true,
+      'https': true,
+      'ftp': true,
+      'gopher': true,
+      'file': true,
+      'http:': true,
+      'https:': true,
+      'ftp:': true,
+      'gopher:': true,
+      'file:': true
+    },
+    querystring = require('querystring');
+
+function urlParse(url, parseQueryString, slashesDenoteHost) {
+  if (url && typeof(url) === 'object' && url.href) return url;
+
+  if (typeof url !== 'string') {
+    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
+  }
+
+  var out = {},
+      rest = url;
+
+  // cut off any delimiters.
+  // This is to support parse stuff like "<http://foo.com>"
+  for (var i = 0, l = rest.length; i < l; i++) {
+    if (arrayIndexOf(delims, rest.charAt(i)) === -1) break;
+  }
+  if (i !== 0) rest = rest.substr(i);
+
+
+  var proto = protocolPattern.exec(rest);
+  if (proto) {
+    proto = proto[0];
+    var lowerProto = proto.toLowerCase();
+    out.protocol = lowerProto;
+    rest = rest.substr(proto.length);
+  }
+
+  // figure out if it's got a host
+  // user@server is *always* interpreted as a hostname, and url
+  // resolution will treat //foo/bar as host=foo,path=bar because that's
+  // how the browser resolves relative URLs.
+  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+    var slashes = rest.substr(0, 2) === '//';
+    if (slashes && !(proto && hostlessProtocol[proto])) {
+      rest = rest.substr(2);
+      out.slashes = true;
+    }
+  }
+
+  if (!hostlessProtocol[proto] &&
+      (slashes || (proto && !slashedProtocol[proto]))) {
+    // there's a hostname.
+    // the first instance of /, ?, ;, or # ends the host.
+    // don't enforce full RFC correctness, just be unstupid about it.
+
+    // If there is an @ in the hostname, then non-host chars *are* allowed
+    // to the left of the first @ sign, unless some non-auth character
+    // comes *before* the @-sign.
+    // URLs are obnoxious.
+    var atSign = arrayIndexOf(rest, '@');
+    if (atSign !== -1) {
+      // there *may be* an auth
+      var hasAuth = true;
+      for (var i = 0, l = nonAuthChars.length; i < l; i++) {
+        var index = arrayIndexOf(rest, nonAuthChars[i]);
+        if (index !== -1 && index < atSign) {
+          // not a valid auth.  Something like http://foo.com/bar@baz/
+          hasAuth = false;
+          break;
+        }
+      }
+      if (hasAuth) {
+        // pluck off the auth portion.
+        out.auth = rest.substr(0, atSign);
+        rest = rest.substr(atSign + 1);
+      }
+    }
+
+    var firstNonHost = -1;
+    for (var i = 0, l = nonHostChars.length; i < l; i++) {
+      var index = arrayIndexOf(rest, nonHostChars[i]);
+      if (index !== -1 &&
+          (firstNonHost < 0 || index < firstNonHost)) firstNonHost = index;
+    }
+
+    if (firstNonHost !== -1) {
+      out.host = rest.substr(0, firstNonHost);
+      rest = rest.substr(firstNonHost);
+    } else {
+      out.host = rest;
+      rest = '';
+    }
+
+    // pull out port.
+    var p = parseHost(out.host);
+    var keys = objectKeys(p);
+    for (var i = 0, l = keys.length; i < l; i++) {
+      var key = keys[i];
+      out[key] = p[key];
+    }
+
+    // we've indicated that there is a hostname,
+    // so even if it's empty, it has to be present.
+    out.hostname = out.hostname || '';
+
+    // validate a little.
+    if (out.hostname.length > hostnameMaxLen) {
+      out.hostname = '';
+    } else {
+      var hostparts = out.hostname.split(/\./);
+      for (var i = 0, l = hostparts.length; i < l; i++) {
+        var part = hostparts[i];
+        if (!part) continue;
+        if (!part.match(hostnamePartPattern)) {
+          var newpart = '';
+          for (var j = 0, k = part.length; j < k; j++) {
+            if (part.charCodeAt(j) > 127) {
+              // we replace non-ASCII char with a temporary placeholder
+              // we need this to make sure size of hostname is not
+              // broken by replacing non-ASCII by nothing
+              newpart += 'x';
+            } else {
+              newpart += part[j];
+            }
+          }
+          // we test again with ASCII char only
+          if (!newpart.match(hostnamePartPattern)) {
+            var validParts = hostparts.slice(0, i);
+            var notHost = hostparts.slice(i + 1);
+            var bit = part.match(hostnamePartStart);
+            if (bit) {
+              validParts.push(bit[1]);
+              notHost.unshift(bit[2]);
+            }
+            if (notHost.length) {
+              rest = '/' + notHost.join('.') + rest;
+            }
+            out.hostname = validParts.join('.');
+            break;
+          }
+        }
+      }
+    }
+
+    // hostnames are always lower case.
+    out.hostname = out.hostname.toLowerCase();
+
+    // IDNA Support: Returns a puny coded representation of "domain".
+    // It only converts the part of the domain name that
+    // has non ASCII characters. I.e. it dosent matter if
+    // you call it with a domain that already is in ASCII.
+    var domainArray = out.hostname.split('.');
+    var newOut = [];
+    for (var i = 0; i < domainArray.length; ++i) {
+      var s = domainArray[i];
+      newOut.push(s.match(/[^A-Za-z0-9_-]/) ?
+          'xn--' + punycode.encode(s) : s);
+    }
+    out.hostname = newOut.join('.');
+
+    out.host = (out.hostname || '') +
+        ((out.port) ? ':' + out.port : '');
+    out.href += out.host;
+  }
+
+  // now rest is set to the post-host stuff.
+  // chop off any delim chars.
+  if (!unsafeProtocol[lowerProto]) {
+
+    // First, make 100% sure that any "autoEscape" chars get
+    // escaped, even if encodeURIComponent doesn't think they
+    // need to be.
+    for (var i = 0, l = autoEscape.length; i < l; i++) {
+      var ae = autoEscape[i];
+      var esc = encodeURIComponent(ae);
+      if (esc === ae) {
+        esc = escape(ae);
+      }
+      rest = rest.split(ae).join(esc);
+    }
+
+    // Now make sure that delims never appear in a url.
+    var chop = rest.length;
+    for (var i = 0, l = delims.length; i < l; i++) {
+      var c = arrayIndexOf(rest, delims[i]);
+      if (c !== -1) {
+        chop = Math.min(c, chop);
+      }
+    }
+    rest = rest.substr(0, chop);
+  }
+
+
+  // chop off from the tail first.
+  var hash = arrayIndexOf(rest, '#');
+  if (hash !== -1) {
+    // got a fragment string.
+    out.hash = rest.substr(hash);
+    rest = rest.slice(0, hash);
+  }
+  var qm = arrayIndexOf(rest, '?');
+  if (qm !== -1) {
+    out.search = rest.substr(qm);
+    out.query = rest.substr(qm + 1);
+    if (parseQueryString) {
+      out.query = querystring.parse(out.query);
+    }
+    rest = rest.slice(0, qm);
+  } else if (parseQueryString) {
+    // no query string, but parseQueryString still requested
+    out.search = '';
+    out.query = {};
+  }
+  if (rest) out.pathname = rest;
+  if (slashedProtocol[proto] &&
+      out.hostname && !out.pathname) {
+    out.pathname = '/';
+  }
+
+  //to support http.request
+  if (out.pathname || out.search) {
+    out.path = (out.pathname ? out.pathname : '') +
+               (out.search ? out.search : '');
+  }
+
+  // finally, reconstruct the href based on what has been validated.
+  out.href = urlFormat(out);
+  return out;
+}
+
+// format a parsed object into a url string
+function urlFormat(obj) {
+  // ensure it's an object, and not a string url.
+  // If it's an obj, this is a no-op.
+  // this way, you can call url_format() on strings
+  // to clean up potentially wonky urls.
+  if (typeof(obj) === 'string') obj = urlParse(obj);
+
+  var auth = obj.auth || '';
+  if (auth) {
+    auth = auth.split('@').join('%40');
+    for (var i = 0, l = nonAuthChars.length; i < l; i++) {
+      var nAC = nonAuthChars[i];
+      auth = auth.split(nAC).join(encodeURIComponent(nAC));
+    }
+    auth += '@';
+  }
+
+  var protocol = obj.protocol || '',
+      host = (obj.host !== undefined) ? auth + obj.host :
+          obj.hostname !== undefined ? (
+              auth + obj.hostname +
+              (obj.port ? ':' + obj.port : '')
+          ) :
+          false,
+      pathname = obj.pathname || '',
+      query = obj.query &&
+              ((typeof obj.query === 'object' &&
+                objectKeys(obj.query).length) ?
+                 querystring.stringify(obj.query) :
+                 '') || '',
+      search = obj.search || (query && ('?' + query)) || '',
+      hash = obj.hash || '';
+
+  if (protocol && protocol.substr(-1) !== ':') protocol += ':';
+
+  // only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
+  // unless they had them to begin with.
+  if (obj.slashes ||
+      (!protocol || slashedProtocol[protocol]) && host !== false) {
+    host = '//' + (host || '');
+    if (pathname && pathname.charAt(0) !== '/') pathname = '/' + pathname;
+  } else if (!host) {
+    host = '';
+  }
+
+  if (hash && hash.charAt(0) !== '#') hash = '#' + hash;
+  if (search && search.charAt(0) !== '?') search = '?' + search;
+
+  return protocol + host + pathname + search + hash;
+}
+
+function urlResolve(source, relative) {
+  return urlFormat(urlResolveObject(source, relative));
+}
+
+function urlResolveObject(source, relative) {
+  if (!source) return relative;
+
+  source = urlParse(urlFormat(source), false, true);
+  relative = urlParse(urlFormat(relative), false, true);
+
+  // hash is always overridden, no matter what.
+  source.hash = relative.hash;
+
+  if (relative.href === '') {
+    source.href = urlFormat(source);
+    return source;
+  }
+
+  // hrefs like //foo/bar always cut to the protocol.
+  if (relative.slashes && !relative.protocol) {
+    relative.protocol = source.protocol;
+    //urlParse appends trailing / to urls like http://www.example.com
+    if (slashedProtocol[relative.protocol] &&
+        relative.hostname && !relative.pathname) {
+      relative.path = relative.pathname = '/';
+    }
+    relative.href = urlFormat(relative);
+    return relative;
+  }
+
+  if (relative.protocol && relative.protocol !== source.protocol) {
+    // if it's a known url protocol, then changing
+    // the protocol does weird things
+    // first, if it's not file:, then we MUST have a host,
+    // and if there was a path
+    // to begin with, then we MUST have a path.
+    // if it is file:, then the host is dropped,
+    // because that's known to be hostless.
+    // anything else is assumed to be absolute.
+    if (!slashedProtocol[relative.protocol]) {
+      relative.href = urlFormat(relative);
+      return relative;
+    }
+    source.protocol = relative.protocol;
+    if (!relative.host && !hostlessProtocol[relative.protocol]) {
+      var relPath = (relative.pathname || '').split('/');
+      while (relPath.length && !(relative.host = relPath.shift()));
+      if (!relative.host) relative.host = '';
+      if (!relative.hostname) relative.hostname = '';
+      if (relPath[0] !== '') relPath.unshift('');
+      if (relPath.length < 2) relPath.unshift('');
+      relative.pathname = relPath.join('/');
+    }
+    source.pathname = relative.pathname;
+    source.search = relative.search;
+    source.query = relative.query;
+    source.host = relative.host || '';
+    source.auth = relative.auth;
+    source.hostname = relative.hostname || relative.host;
+    source.port = relative.port;
+    //to support http.request
+    if (source.pathname !== undefined || source.search !== undefined) {
+      source.path = (source.pathname ? source.pathname : '') +
+                    (source.search ? source.search : '');
+    }
+    source.slashes = source.slashes || relative.slashes;
+    source.href = urlFormat(source);
+    return source;
+  }
+
+  var isSourceAbs = (source.pathname && source.pathname.charAt(0) === '/'),
+      isRelAbs = (
+          relative.host !== undefined ||
+          relative.pathname && relative.pathname.charAt(0) === '/'
+      ),
+      mustEndAbs = (isRelAbs || isSourceAbs ||
+                    (source.host && relative.pathname)),
+      removeAllDots = mustEndAbs,
+      srcPath = source.pathname && source.pathname.split('/') || [],
+      relPath = relative.pathname && relative.pathname.split('/') || [],
+      psychotic = source.protocol &&
+          !slashedProtocol[source.protocol];
+
+  // if the url is a non-slashed url, then relative
+  // links like ../.. should be able
+  // to crawl up to the hostname, as well.  This is strange.
+  // source.protocol has already been set by now.
+  // Later on, put the first path part into the host field.
+  if (psychotic) {
+
+    delete source.hostname;
+    delete source.port;
+    if (source.host) {
+      if (srcPath[0] === '') srcPath[0] = source.host;
+      else srcPath.unshift(source.host);
+    }
+    delete source.host;
+    if (relative.protocol) {
+      delete relative.hostname;
+      delete relative.port;
+      if (relative.host) {
+        if (relPath[0] === '') relPath[0] = relative.host;
+        else relPath.unshift(relative.host);
+      }
+      delete relative.host;
+    }
+    mustEndAbs = mustEndAbs && (relPath[0] === '' || srcPath[0] === '');
+  }
+
+  if (isRelAbs) {
+    // it's absolute.
+    source.host = (relative.host || relative.host === '') ?
+                      relative.host : source.host;
+    source.hostname = (relative.hostname || relative.hostname === '') ?
+                      relative.hostname : source.hostname;
+    source.search = relative.search;
+    source.query = relative.query;
+    srcPath = relPath;
+    // fall through to the dot-handling below.
+  } else if (relPath.length) {
+    // it's relative
+    // throw away the existing file, and take the new path instead.
+    if (!srcPath) srcPath = [];
+    srcPath.pop();
+    srcPath = srcPath.concat(relPath);
+    source.search = relative.search;
+    source.query = relative.query;
+  } else if ('search' in relative) {
+    // just pull out the search.
+    // like href='?foo'.
+    // Put this after the other two cases because it simplifies the booleans
+    if (psychotic) {
+      source.hostname = source.host = srcPath.shift();
+      //occationaly the auth can get stuck only in host
+      //this especialy happens in cases like
+      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+      var authInHost = source.host && arrayIndexOf(source.host, '@') > 0 ?
+                       source.host.split('@') : false;
+      if (authInHost) {
+        source.auth = authInHost.shift();
+        source.host = source.hostname = authInHost.shift();
+      }
+    }
+    source.search = relative.search;
+    source.query = relative.query;
+    //to support http.request
+    if (source.pathname !== undefined || source.search !== undefined) {
+      source.path = (source.pathname ? source.pathname : '') +
+                    (source.search ? source.search : '');
+    }
+    source.href = urlFormat(source);
+    return source;
+  }
+  if (!srcPath.length) {
+    // no path at all.  easy.
+    // we've already handled the other stuff above.
+    delete source.pathname;
+    //to support http.request
+    if (!source.search) {
+      source.path = '/' + source.search;
+    } else {
+      delete source.path;
+    }
+    source.href = urlFormat(source);
+    return source;
+  }
+  // if a url ENDs in . or .., then it must get a trailing slash.
+  // however, if it ends in anything else non-slashy,
+  // then it must NOT get a trailing slash.
+  var last = srcPath.slice(-1)[0];
+  var hasTrailingSlash = (
+      (source.host || relative.host) && (last === '.' || last === '..') ||
+      last === '');
+
+  // strip single dots, resolve double dots to parent dir
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = srcPath.length; i >= 0; i--) {
+    last = srcPath[i];
+    if (last == '.') {
+      srcPath.splice(i, 1);
+    } else if (last === '..') {
+      srcPath.splice(i, 1);
+      up++;
+    } else if (up) {
+      srcPath.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (!mustEndAbs && !removeAllDots) {
+    for (; up--; up) {
+      srcPath.unshift('..');
+    }
+  }
+
+  if (mustEndAbs && srcPath[0] !== '' &&
+      (!srcPath[0] || srcPath[0].charAt(0) !== '/')) {
+    srcPath.unshift('');
+  }
+
+  if (hasTrailingSlash && (srcPath.join('/').substr(-1) !== '/')) {
+    srcPath.push('');
+  }
+
+  var isAbsolute = srcPath[0] === '' ||
+      (srcPath[0] && srcPath[0].charAt(0) === '/');
+
+  // put the host back
+  if (psychotic) {
+    source.hostname = source.host = isAbsolute ? '' :
+                                    srcPath.length ? srcPath.shift() : '';
+    //occationaly the auth can get stuck only in host
+    //this especialy happens in cases like
+    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+    var authInHost = source.host && arrayIndexOf(source.host, '@') > 0 ?
+                     source.host.split('@') : false;
+    if (authInHost) {
+      source.auth = authInHost.shift();
+      source.host = source.hostname = authInHost.shift();
+    }
+  }
+
+  mustEndAbs = mustEndAbs || (source.host && srcPath.length);
+
+  if (mustEndAbs && !isAbsolute) {
+    srcPath.unshift('');
+  }
+
+  source.pathname = srcPath.join('/');
+  //to support request.http
+  if (source.pathname !== undefined || source.search !== undefined) {
+    source.path = (source.pathname ? source.pathname : '') +
+                  (source.search ? source.search : '');
+  }
+  source.auth = relative.auth || source.auth;
+  source.slashes = source.slashes || relative.slashes;
+  source.href = urlFormat(source);
+  return source;
+}
+
+function parseHost(host) {
+  var out = {};
+  var port = portPattern.exec(host);
+  if (port) {
+    port = port[0];
+    out.port = port.substr(1);
+    host = host.substr(0, host.length - port.length);
+  }
+  if (host) out.hostname = host;
+  return out;
+}
+
+},{"querystring":7}],7:[function(require,module,exports){
+
+/**
+ * Object#toString() ref for stringify().
+ */
+
+var toString = Object.prototype.toString;
+
+/**
+ * Array#indexOf shim.
+ */
+
+var indexOf = typeof Array.prototype.indexOf === 'function'
+  ? function(arr, el) { return arr.indexOf(el); }
+  : function(arr, el) {
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i] === el) return i;
+      }
+      return -1;
+    };
+
+/**
+ * Array.isArray shim.
+ */
+
+var isArray = Array.isArray || function(arr) {
+  return toString.call(arr) == '[object Array]';
+};
+
+/**
+ * Object.keys shim.
+ */
+
+var objectKeys = Object.keys || function(obj) {
+  var ret = [];
+  for (var key in obj) ret.push(key);
+  return ret;
+};
+
+/**
+ * Array#forEach shim.
+ */
+
+var forEach = typeof Array.prototype.forEach === 'function'
+  ? function(arr, fn) { return arr.forEach(fn); }
+  : function(arr, fn) {
+      for (var i = 0; i < arr.length; i++) fn(arr[i]);
+    };
+
+/**
+ * Array#reduce shim.
+ */
+
+var reduce = function(arr, fn, initial) {
+  if (typeof arr.reduce === 'function') return arr.reduce(fn, initial);
+  var res = initial;
+  for (var i = 0; i < arr.length; i++) res = fn(res, arr[i]);
+  return res;
+};
+
+/**
+ * Cache non-integer test regexp.
+ */
+
+var isint = /^[0-9]+$/;
+
+function promote(parent, key) {
+  if (parent[key].length == 0) return parent[key] = {};
+  var t = {};
+  for (var i in parent[key]) t[i] = parent[key][i];
+  parent[key] = t;
+  return t;
+}
+
+function parse(parts, parent, key, val) {
+  var part = parts.shift();
+  // end
+  if (!part) {
+    if (isArray(parent[key])) {
+      parent[key].push(val);
+    } else if ('object' == typeof parent[key]) {
+      parent[key] = val;
+    } else if ('undefined' == typeof parent[key]) {
+      parent[key] = val;
+    } else {
+      parent[key] = [parent[key], val];
+    }
+    // array
+  } else {
+    var obj = parent[key] = parent[key] || [];
+    if (']' == part) {
+      if (isArray(obj)) {
+        if ('' != val) obj.push(val);
+      } else if ('object' == typeof obj) {
+        obj[objectKeys(obj).length] = val;
+      } else {
+        obj = parent[key] = [parent[key], val];
+      }
+      // prop
+    } else if (~indexOf(part, ']')) {
+      part = part.substr(0, part.length - 1);
+      if (!isint.test(part) && isArray(obj)) obj = promote(parent, key);
+      parse(parts, obj, part, val);
+      // key
+    } else {
+      if (!isint.test(part) && isArray(obj)) obj = promote(parent, key);
+      parse(parts, obj, part, val);
+    }
+  }
+}
+
+/**
+ * Merge parent key/val pair.
+ */
+
+function merge(parent, key, val){
+  if (~indexOf(key, ']')) {
+    var parts = key.split('[')
+      , len = parts.length
+      , last = len - 1;
+    parse(parts, parent, 'base', val);
+    // optimize
+  } else {
+    if (!isint.test(key) && isArray(parent.base)) {
+      var t = {};
+      for (var k in parent.base) t[k] = parent.base[k];
+      parent.base = t;
+    }
+    set(parent.base, key, val);
+  }
+
+  return parent;
+}
+
+/**
+ * Parse the given obj.
+ */
+
+function parseObject(obj){
+  var ret = { base: {} };
+  forEach(objectKeys(obj), function(name){
+    merge(ret, name, obj[name]);
+  });
+  return ret.base;
+}
+
+/**
+ * Parse the given str.
+ */
+
+function parseString(str){
+  return reduce(String(str).split('&'), function(ret, pair){
+    var eql = indexOf(pair, '=')
+      , brace = lastBraceInKey(pair)
+      , key = pair.substr(0, brace || eql)
+      , val = pair.substr(brace || eql, pair.length)
+      , val = val.substr(indexOf(val, '=') + 1, val.length);
+
+    // ?foo
+    if ('' == key) key = pair, val = '';
+    if ('' == key) return ret;
+
+    return merge(ret, decode(key), decode(val));
+  }, { base: {} }).base;
+}
+
+/**
+ * Parse the given query `str` or `obj`, returning an object.
+ *
+ * @param {String} str | {Object} obj
+ * @return {Object}
+ * @api public
+ */
+
+exports.parse = function(str){
+  if (null == str || '' == str) return {};
+  return 'object' == typeof str
+    ? parseObject(str)
+    : parseString(str);
+};
+
+/**
+ * Turn the given `obj` into a query string
+ *
+ * @param {Object} obj
+ * @return {String}
+ * @api public
+ */
+
+var stringify = exports.stringify = function(obj, prefix) {
+  if (isArray(obj)) {
+    return stringifyArray(obj, prefix);
+  } else if ('[object Object]' == toString.call(obj)) {
+    return stringifyObject(obj, prefix);
+  } else if ('string' == typeof obj) {
+    return stringifyString(obj, prefix);
+  } else {
+    return prefix + '=' + encodeURIComponent(String(obj));
+  }
+};
+
+/**
+ * Stringify the given `str`.
+ *
+ * @param {String} str
+ * @param {String} prefix
+ * @return {String}
+ * @api private
+ */
+
+function stringifyString(str, prefix) {
+  if (!prefix) throw new TypeError('stringify expects an object');
+  return prefix + '=' + encodeURIComponent(str);
+}
+
+/**
+ * Stringify the given `arr`.
+ *
+ * @param {Array} arr
+ * @param {String} prefix
+ * @return {String}
+ * @api private
+ */
+
+function stringifyArray(arr, prefix) {
+  var ret = [];
+  if (!prefix) throw new TypeError('stringify expects an object');
+  for (var i = 0; i < arr.length; i++) {
+    ret.push(stringify(arr[i], prefix + '[' + i + ']'));
+  }
+  return ret.join('&');
+}
+
+/**
+ * Stringify the given `obj`.
+ *
+ * @param {Object} obj
+ * @param {String} prefix
+ * @return {String}
+ * @api private
+ */
+
+function stringifyObject(obj, prefix) {
+  var ret = []
+    , keys = objectKeys(obj)
+    , key;
+
+  for (var i = 0, len = keys.length; i < len; ++i) {
+    key = keys[i];
+    if (null == obj[key]) {
+      ret.push(encodeURIComponent(key) + '=');
+    } else {
+      ret.push(stringify(obj[key], prefix
+        ? prefix + '[' + encodeURIComponent(key) + ']'
+        : encodeURIComponent(key)));
+    }
+  }
+
+  return ret.join('&');
+}
+
+/**
+ * Set `obj`'s `key` to `val` respecting
+ * the weird and wonderful syntax of a qs,
+ * where "foo=bar&foo=baz" becomes an array.
+ *
+ * @param {Object} obj
+ * @param {String} key
+ * @param {String} val
+ * @api private
+ */
+
+function set(obj, key, val) {
+  var v = obj[key];
+  if (undefined === v) {
+    obj[key] = val;
+  } else if (isArray(v)) {
+    v.push(val);
+  } else {
+    obj[key] = [v, val];
+  }
+}
+
+/**
+ * Locate last brace in `str` within the key.
+ *
+ * @param {String} str
+ * @return {Number}
+ * @api private
+ */
+
+function lastBraceInKey(str) {
+  var len = str.length
+    , brace
+    , c;
+  for (var i = 0; i < len; ++i) {
+    c = str[i];
+    if (']' == c) brace = false;
+    if ('[' == c) brace = true;
+    if ('=' == c && !brace) return i;
+  }
+}
+
+/**
+ * Decode `str`.
+ *
+ * @param {String} str
+ * @return {String}
+ * @api private
+ */
+
+function decode(str) {
+  try {
+    return decodeURIComponent(str.replace(/\+/g, ' '));
+  } catch (err) {
+    return str;
+  }
+}
+
+},{}],2:[function(require,module,exports){
 /*
 
-	(The MIT License)
+  (The MIT License)
 
-	Copyright (C) 2005-2013 Kai Davenport
+  Copyright (C) 2005-2013 Kai Davenport
 
-	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
  */
 
+
 /*
-  Module dependencies.
+
+	supply chain
+
+  a container layer ontop of the underlying req, res network
+
+  this connects a function with the container API
+
+  so:
+
+    var container = digger.supplychain(function(req, res){
+      // here we have a req with
+
+      // x-json-selectors filled in
+
+    })
+
+    container('find me').ship(function(stuff){
+      // here we have whatever the function returned
+    })
+
+
+  it is a neat trick to create a supplychain that proxies over
+  the network to fullfull the request
+
+  This lets us make generic objects that access network services
+
+  It also lets us use the same code to built a socket supply chain
+  (for websocket browser connections) and a HTTP supply chain (for 
+  REST api's etc)
+
+	
 */
 var EventEmitter = require('events').EventEmitter;
 var _ = require('lodash');
-var xmldom = require('xmldom');
-var async = require('async');
-//var utils = require('digger-utils');
-var xtend = require('xtend');
-//var uuid = require('node-uuid');
-var extend = require('extend');
-//module.exports = require('./supplychain');
-},{"async":7,"events":2,"extend":6,"lodash":4,"xmldom":5,"xtend":8}],4:[function(require,module,exports){
+
+var Container = require('./proto');
+var Contract = require('../request/contract');
+var Response = require('../request/response');
+
+var Merge = Contract.mergefactory;
+var Sequence = Contract.sequencefactory;
+
+/*
+
+  create a new supply chain that will pipe a req and res object into the
+  provided fn
+
+  
+*/
+
+function factory(){
+
+  var url = '/';
+  var supplierfn = null;
+  var container = null;
+
+  _.each(_.toArray(arguments), function(arg){
+    if(_.isFunction(arg)){
+      /*
+      
+        it is an existing container
+        
+      */
+      if(_.isFunction(arg.diggerid)){
+        container = arg;
+      }
+      /*
+      
+        otherwise the supplierchain function
+        
+      */
+      else{
+        supplierfn = arg;  
+      }
+    }
+    /*
+    
+      it is a URL to create a container from
+      
+    */
+    else if(_.isString(arg)){
+      container = Container.factory('_supplychain');
+      url = arg;
+    }
+    else if(_.isArray(arg) || _.isObject(arg)){
+      if(!_.isArray(arg)){
+        arg = [arg];
+      }
+
+      container = Container.factory(arg);
+    }
+
+  })
+
+
+  if(!container){
+    container = Container.factory('_supplychain');
+  }
+
+  if(!supplierfn){
+    supplierfn = function(req, res){
+      res.send404();
+    }
+  }
+
+  if(!container.diggerwarehouse()){
+    container.diggerwarehouse(url);
+  }
+
+  /*
+  
+    are we connected directly to some backend functions (i.e. non network mode)
+
+    if yes then we will fake serialize the requests
+    
+  */
+  var should_auto_serialize = supplierfn._diggertype=='warehouse' || supplierfn._diggertype=='supplier' || supplierfn._diggertype=='provider';
+
+  function supplychain(){}
+
+  _.extend(supplychain, EventEmitter.prototype);
+
+  supplychain.ship = function(contract, callback){
+    var self = this;
+
+    var res = Response.factory(function(){
+
+      /*
+      
+        resolve means extracting the multipart responses
+        
+      */
+      res.resolve(function(results, errors){
+        if(should_auto_serialize){
+          results = JSON.parse(JSON.stringify(results));
+        }
+        var answer = results;
+        if(contract.getHeader('x-expect')==='digger/containers'){
+          if(results && results.length>0){
+            answer = container.spawn(results);
+          }
+          else{
+            answer = container.spawn();
+          }
+        }
+
+        contract.emit('shipped', answer);
+        callback(answer, res);
+      })
+
+    })
+
+    if(should_auto_serialize){
+      _.each(JSON.parse(JSON.stringify(contract.toJSON())), function(v, k){
+        contract[k] = v;
+      })
+    }
+    
+    supplierfn(contract, res);
+
+    return res;
+  }
+
+  /*
+  
+    the switchboard features of the supplychain
+    
+  */
+  supplychain.listen = function(key, callback){
+    if(supplierfn.switchboard){
+      supplierfn.switchboard.listen(key, callback);
+    }
+    return this;
+  }
+
+  supplychain.broadcast = function(key, message){
+    if(supplierfn.switchboard){
+      supplierfn.switchboard.broadcast(key, message);
+    }
+    return this;
+  }
+
+
+  container.supplychain = supplychain;
+
+  /*
+  
+    used to create other container with different URLs
+    
+  */
+  container.connect = function(url){
+    var ret = Container.factory('_supplychain');
+    ret.diggerwarehouse(url);
+    ret.supplychain = supplychain;
+    return ret;
+  }
+  
+  container.merge = function(arr){
+    var contract = Merge(arr);
+    contract.supplychain = supplychain;
+    return contract;
+  }
+
+  container.sequence = function(arr){
+    var contract = Sequence(arr);
+    contract.supplychain = supplychain;
+    return contract;
+  }
+  
+
+  return container;
+}
+
+module.exports = factory;
+},{"../request/contract":8,"../request/response":9,"./proto":10,"events":4,"lodash":11}],11:[function(require,module,exports){
 (function(global){/**
  * @license
  * Lo-Dash 1.3.1 (Custom Build) <http://lodash.com/>
@@ -5823,86 +7321,2871 @@ var extend = require('extend');
 }(this));
 
 })(self)
-},{}],6:[function(require,module,exports){
-var hasOwn = Object.prototype.hasOwnProperty;
+},{}],8:[function(require,module,exports){
+/*
 
-function isPlainObject(obj) {
-	if (!obj || toString.call(obj) !== '[object Object]' || obj.nodeType || obj.setInterval)
-		return false;
+	(The MIT License)
 
-	var has_own_constructor = hasOwnProperty.call(obj, 'constructor');
-	var has_is_property_of_method = hasOwnProperty.call(obj.constructor.prototype, 'isPrototypeOf');
-	// Not own constructor property must be Object
-	if (obj.constructor && !has_own_constructor && !has_is_property_of_method)
-		return false;
+	Copyright (C) 2005-2013 Kai Davenport
 
-	// Own properties are enumerated firstly, so to speed up,
-	// if last one is own, then all properties are own.
-	var key;
-	for ( key in obj ) {}
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-	return key === undefined || hasOwn.call( obj, key );
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+
+/**
+ * Module dependencies.
+ */
+
+var util = require('util');
+var Message = require('./message');
+var url = require('url');
+var _ = require('lodash');
+var utils = require('digger-utils');
+var Request = require('./request');
+var Response = require('./response');
+
+
+/*
+
+
+  
+*/
+
+module.exports = Contract;
+
+function Contract(data){
+  var self = this;
+  data = data || {};
+  if(_.isString(data)){
+    data = {
+      headers:{
+        'x-contract-type':data
+      }
+    }
+  }
+  Request.apply(this, [data]);
+
+  this.setHeader('content-type', 'digger/contract');
+
+  if(!this.getHeader('x-contract-type')){
+    this.setHeader('x-contract-type', 'merge');
+  }
+
+  if(!this.getHeader('x-contract-id')){
+    this.setHeader('x-contract-id', utils.diggerid());
+  }
+
+  if(!this.body){
+    this.body = [];
+  }
+}
+
+util.inherits(Contract, Request);
+
+Contract.factory = function(data){
+  return new Contract(data);
+}
+
+Contract.mergefactory = function(data){
+  var contract = Contract.factory('merge');
+  contract.url = 'reception:/';
+  contract.method = 'post';
+  contract.body = _.map(data, function(child){
+    return child.toJSON();
+  })
+  return contract;
+}
+
+Contract.sequencefactory = function(data){
+  var contract = Contract.factory('sequence');
+  contract.url = 'reception:/';
+  contract.method = 'post';
+  contract.body = _.map(data, function(child){
+    return child.toJSON();
+  })
+  return contract;
+}
+
+Contract.prototype.add = function(req){
+  var self = this;
+
+  if(_.isArray(req)){
+    _.each(req, function(item){
+      self.add(item);
+    })
+  }
+  else{
+
+    var whattoadd = req;
+
+    if(_.isFunction(req.toJSON)){
+      if(req.getHeader('x-contract-type')==this.getHeader('x-contract-type')){
+        this.body = this.body.concat(req.body);
+      }
+      else{
+        this.body.push(req.toJSON());
+      }
+    }
+  }
+  return this;
+}
+
+/*
+
+  inject properties into the x-json-digger-properties header
+
+  all suppliers listen to this header
+  
+*/
+
+Contract.prototype.digger_property = function(field, val){
+  var props = this.getHeader('x-json-digger-properties') || {};
+  if(arguments.length>1){
+    props[field] = val;
+    this.setHeader('x-json-digger-properties', props);
+  }
+  return props[field];
+}
+
+Contract.prototype.ship = function(callback){
+  if(!this.supplychain){
+    console.log('-------------------------------------------');
+    console.log('there is no supplychain to ship with');
+    throw new Error('contract has not been given a supply chain to ship with');
+  }
+
+  return this.supplychain.ship(this, callback);
+}
+},{"./message":13,"./request":12,"./response":9,"digger-utils":14,"lodash":11,"url":6,"util":5}],9:[function(require,module,exports){
+(function(){/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+
+/**
+ * Module dependencies.
+ */
+
+var util = require('util');
+var Message = require('./message');
+var _ = require('lodash');
+var Q = require('q');
+
+/*
+
+  
+*/
+
+module.exports = Response;
+
+function Response(data){
+  Message.apply(this, [data]);
+  this.statusCode = data ? data.statusCode : 200;
+}
+
+Response.factory = function(data, errorfn){
+
+  /*
+  
+    sort out the constructor so you can quickly
+    create responses with the callback hooked up
+    
+  */
+  var fn = null;
+  var autoresolve = false;
+  if(_.isFunction(data)){
+    fn = data;
+    data = null;
+  }
+  else if(_.isBoolean(data)){
+    autoresolve = data;
+    data = null;
+  }
+
+  var ret = new Response(data);
+
+  var sent = false;
+
+  /*
+  
+    AUTO RESOLVE
+
+    this is for client sided responses that will parse the body
+    for multipart messages
+
+    server side responses are more often concerned with just moving stuff
+    around to want to open the content and process - hence not 'resolving'
+    
+  */
+  if(autoresolve){
+    ret.on('send', function(){
+      ret.resolve();
+    })
+  }
+
+  if(fn){
+    ret.on('send', fn);
+  }
+
+  return ret;
+}
+
+util.inherits(Response, Message);
+
+/*
+
+  inject the raw data from an over the wire response
+  and trigger the appropriate event
+  
+*/
+Response.prototype.fill = function(answer){
+  if(!answer){
+    return this;
+  }
+  this.statusCode = answer.statusCode;
+  this.headers = answer.headers;
+  this.body = answer.body;
+  this.send(answer.body);
+}
+
+Response.prototype.statusCode = 200;
+
+Response.prototype.send = function(body){
+  if(this.headerSent===true){
+    throw new Error('cannot send response after headers have been sent');
+  }
+
+  this.body = arguments.length>0 ? body : this.body;
+  this.emit('beforesend', body);
+  this.emit('send', body);
+  this.emit('aftersend', body);
+  this.headerSent = true;
+  return this;
+}
+
+Response.prototype.resolve = function(fn){
+
+  if(!this.statusCode){
+    this.statusCode = 200;
+  }
+
+  var results = [];
+  var errors = [];
+  var branches = this.getHeader('x-json-branches') || [];
+
+  function resolvemutlipart(multires){
+    if(multires.statusCode==200){
+      if(multires.getHeader('content-type')=='digger/multipart'){
+        _.each(multires.body, function(raw){
+          if(!raw.statusCode){
+            raw.statusCode = 200;
+          }
+          resolvemutlipart(new Response(raw));
+        })
+      } 
+      else{
+        var subbranches = multires.getHeader('x-json-branches') || [];
+        branches = branches.concat(subbranches);
+        if(_.isArray(multires.body)){
+          results = results.concat(multires.body);
+        }
+        else{
+          results.push(multires.body);
+        }
+      }
+    }
+    else{
+      errors.push(multires.body);
+    }
+  }
+
+  if(this.statusCode===200){
+    if(this.getHeader('content-type')=='digger/multipart'){
+      resolvemutlipart(this);
+      if(results.length>0){
+        this.emit('success', results, this);
+      }
+
+      if(errors.length>0){
+        this.emit('failure', errors, this);    
+      }
+    }
+    else{
+      results = this.body;
+      this.emit('success', this.body, this);
+    }
+  }
+  else{
+    errors = this.body;
+    this.emit('failure', this.body, this);
+  }
+
+  this.setHeader('x-json-branches', branches);
+
+  if(fn){
+    fn(results, errors);
+  }  
+}
+
+Response.prototype.toJSON = function(){
+  var ret = Message.prototype.toJSON.apply(this);
+  ret.statusCode = this.statusCode;
+  return ret;
+}
+
+Response.prototype.hasError = function(){
+  return this.statusCode!==200;
+}
+
+Response.prototype.sendError = function(text){
+  this.statusCode = 500;
+  this.send(text);
+}
+
+Response.prototype.send404 = function(req){
+  this.statusCode = 404;
+  this.send(req ? req.toJSON() : null);
+}
+
+Response.prototype.redirect = function(location){
+  this.statusCode = 302;
+  this.send(location);
+}
+
+Response.prototype.add = function(childres){
+  this.setHeader('content-type', 'digger/multipart');
+  if(!this.body){
+    this.body = [];
+  }
+  this.body.push(_.isFunction(childres.toJSON) ? childres.toJSON() : childres);
+  return this;
+}
+})()
+},{"./message":13,"lodash":11,"q":15,"util":5}],10:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+var EventEmitter = require('events').EventEmitter;
+var deepdot = require('./deepdot');
+var async = require('async');
+var utils = require('digger-utils');
+var ModelFactory = require('./models');
+var Finder = require('./search');
+var Contracts = require('./contracts');
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  Factory
+
+  create new containers with input data
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+var Container = module.exports = function Container(){}
+
+/*
+
+	Factory
+	
+*/
+Container.factory = function factory(){
+	/*
+  
+    first let's extract the model data
+    
+  */
+  var models = ModelFactory.apply(null, _.toArray(arguments));
+
+  /*
+  
+    now make the actual container which is a function that triggers it's own 'select' method
+    (for JQuery style selects like):
+
+      container('some.selector')
+
+    which is the same as
+
+      container.select('some.selector')
+    
+  */
+  var instance = function container(){
+    return instance.select.apply(instance, _.toArray(arguments));
+  }
+
+  /*
+  
+    now map in the prototype
+    
+  */
+  _.extend(instance, Container.prototype);
+  _.extend(instance, EventEmitter.prototype);
+
+  instance.build(models);
+  
+  return instance;
+}
+
+Container.prototype.build = function(models){
+	var self = this;
+	this.models = models;
+}
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  Data exporting
+
+  these methods will output the underlying models in the given format
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+Container.prototype.toJSON = function(){
+	return this.models;
+}
+
+Container.prototype.toXML = function(){
+	return ModelFactory.toXML(this.models);
+}
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  Spawning - these methods generate new containers using the provided model data
+
+  The new containers will have the same supplychain as the spawning (parent) container
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+/*
+
+  called to ensure that every container has a diggerid and diggerpath
+
+  this should be called from the top most container
+  
+*/
+Container.prototype.ensure_meta = function(done){
+  if(!this.diggerid()){
+    this.diggerid(utils.diggerid());
+  }
+
+  var topcounter = 0;
+  if(this.diggerpath().length<=0){
+    this.inject_paths([topcounter]);
+    topcounter++;
+  }
+
+  this.ensure_parent_ids();
+  return this;
+}
+
+Container.prototype.ensure_parent_ids = function(parent){
+
+  var self = this;
+
+  if(parent){
+    this.diggerparentid(parent.diggerid());
+  }
+
+  this.children().each(function(child){
+    child.ensure_parent_ids(self);
+  })
+}
+
+Container.prototype.inject_paths = function(basepath){
+
+  this.diggerpath(basepath);
+
+  this.children().each(function(child, index){
+    child.inject_paths(basepath.concat([index]));
+  })
+
+}
+
+Container.prototype.spawn = function(models){
+  models = models || [];
+	var container = Container.factory(models);
+	container.supplychain = this.supplychain;
+	return container;
+}
+
+Container.prototype.clone = function(){
+  var data = JSON.parse(JSON.stringify(this.models));
+  var ret = this.spawn(data);
+  ret.recurse(function(des){
+    des.diggerid(utils.diggerid());
+  })
+  ret.ensure_parent_ids();
+  return ret;
+}
+
+/*
+
+  get the object containing the given field name
+  
+*/
+Container.prototype.propertymodel = function(field){
+  if(field.indexOf('.')<0){
+    return this.get(0);
+  }
+  else{
+    var parts = field.split('.');
+    parts.pop();
+    field = parts.join('.');
+    var model = this.attr(field);
+    if(!model){
+      model = {};
+      this.attr(field, model);
+    }
+    return model;
+  }
+}
+
+Container.prototype.children = function(){
+  var models = [];
+  var self = this;
+  this.each(function(container){
+    models = models.concat(container.get(0)._children);
+  })
+	return this.spawn(models);
+}
+
+Container.prototype.recurse = function(fn){
+  this.descendents().each(fn);
+  return this;
+}
+
+Container.prototype.descendents = function(){
+  var ret = [];
+
+  function scoopmodels(container){
+    ret = ret.concat(container.models);
+    container.children().each(scoopmodels);
+  }
+
+  scoopmodels(this);
+
+  return this.spawn(ret);
+}
+
+Container.prototype.containers = function(){
+  var self = this;
+  return _.map(this.models, function(model){
+    return self.spawn([model]);
+  })
+}
+
+Container.prototype.skeleton = function(){
+  return _.map(this.models, function(model){
+    return model._digger || {};
+  })
+}
+
+Container.prototype.add = function(container){
+  var self = this;
+  if(_.isArray(container)){
+    _.each(container, function(c){
+      self.add(c);
+    })
+  }
+  else{
+    this.models = this.models.concat(container.models);
+  }
+  return this;
+}
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  Models
+
+  Iteration and access methods for the underlying model array
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+Container.prototype.each = function(fn){
+	_.each(this.containers(), fn);
+	return this;
+}
+
+Container.prototype.map = function(fn){
+	return _.map(this.containers(), fn);
+}
+
+Container.prototype.count = function(){
+	return this.models.length;
+}
+
+Container.prototype.first = function(){
+	return this.eq(0);
+}
+
+Container.prototype.last = function(){
+	return this.eq(this.count()-1);
+}
+
+Container.prototype.eq = function(index){
+	return this.spawn(this.get(index));
+}
+
+Container.prototype.get = function(index){
+	return this.models[index];
+}
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  Property Accessors
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+/*
+
+  generic wrapper function to handle our array of models via a single function
+
+  
+*/
+
+function valuereader(model, name){
+  return deepdot(model, name);
+}
+function valuesetter(models, name, value, silent){
+  _.each(models, function(model){
+    deepdot(model, name, value);
+  })
+}
+
+function wrapper(key, options){
+
+  options = options || {};
+
+  if(_.isString(options)){
+    options = {
+      leaf:options
+    }
+  }
+
+  var leaf = options.leaf;
+  var fullkey = leaf ? (key ? key + '.' : '') + leaf : (key || '');
+
+  fullkey = fullkey.replace(/^\./, '');
+
+  return function(){
+    var self = this;
+
+    /*
+    
+      READ
+      -----
+      wholesale getter of the object
+      
+    */
+    if(arguments.length<=0){
+      return valuereader(this.models[0], fullkey);
+    }
+    /*
+    
+      READ
+      -----
+      we are reading a first model value
+
+    */
+    else if(arguments.length==1 && _.isString(arguments[0]) && !leaf){
+      return valuereader(this.models[0], [key, arguments[0]].join('.'));
+    }
+    /*
+    
+      WRITE
+      -----
+      we are setting an object
+      
+    */
+    else if(arguments.length==1){
+      var name = fullkey;
+      valuesetter(this.models, fullkey, arguments[0], this._silent);
+      return self;
+    }
+    /*
+    
+      WRITE
+      -----
+      we are setting a string value
+      
+    */
+    else if(arguments.length>1){
+      valuesetter(this.models, [fullkey, arguments[0]].join('.'), arguments[1], this._silent);
+      return self;
+    }
+  }
+  
+}
+
+function remove_wrapper(topprop){
+  return function(prop){
+    var self = this;
+    if(arguments.length<=0){
+      return this;
+    }
+    if(!_.isArray(prop)){
+      prop = [prop];
+    }
+    _.each(prop, function(p){
+      self[topprop](p, null);
+    })
+    return this;
+  }
+}
+
+Container.prototype.attr = wrapper();
+Container.prototype.removeAttr = remove_wrapper();
+
+Container.prototype.digger = wrapper('_digger');
+
+Container.prototype.meta = wrapper('_digger');
+Container.prototype.removeMeta = remove_wrapper('_digger');
+
+Container.prototype.data = wrapper('_data');
+Container.prototype.removeData = remove_wrapper('_data');
+
+Container.prototype.diggerid = wrapper('_digger', 'diggerid');
+Container.prototype.diggerparentid = wrapper('_digger', 'diggerparentid');
+Container.prototype.diggerwarehouse = wrapper('_digger', 'diggerwarehouse');
+
+var pathwrapper = wrapper('_digger', 'diggerpath');
+Container.prototype.diggerpath = function(){
+  var ret = pathwrapper.apply(this, _.toArray(arguments));
+
+  if(!_.isArray(ret)){
+    ret = [];
+  }
+
+  return ret;
+}
+
+var branchwrapper = wrapper('_digger', 'diggerbranch');
+Container.prototype.diggerbranch = function(){
+  var ret = branchwrapper.apply(this, _.toArray(arguments));
+
+  if(!_.isArray(ret)){
+    ret = [];
+  }
+
+  return ret;
+}
+
+Container.prototype.addBranch = function(where){
+  var self = this;
+  var branches = this.diggerbranch();
+  where.each(function(container){
+    branches.push(container.diggerurl());
+  })
+  this.diggerbranch(branches);
+  return this;
+}
+
+Container.prototype.removeBranch = function(where){
+  var self = this;
+  var branches = this.diggerbranch();
+  where.each(function(container){
+    branches.splice(_.indexOf(branches, container.diggerurl()));
+  })
+  this.diggerbranch(branches);
+  return this;
+}
+
+Container.prototype.diggerurl = function(){
+  var warehouse = this.diggerwarehouse();
+  var id = this.diggerid();
+
+  var url = warehouse;
+
+  if(id && this.tag()!='_supplychain'){
+    if(warehouse!='/'){
+      url += '/';
+    }
+
+    url += id;
+  }
+  
+  return url;
+}
+
+Container.prototype.id = wrapper('_digger', 'id');
+Container.prototype.tag = wrapper('_digger', 'tag');
+Container.prototype.classnames = wrapper('_digger', 'class');
+
+Container.prototype.is = function(tag){
+  return this.tag()==tag;
+}
+
+Container.prototype.addClass = function(classname){
+  var self = this;
+  _.each(this.models, function(model){
+    var classnames = model._digger.class || [];
+		classnames.push(classname);
+		classnames = _.uniq(classnames);
+    model._digger.class = classnames;
+  })
+  return this;
+}
+
+Container.prototype.removeClass = function(classname){
+  var self = this;
+  _.each(this.models, function(model){
+    var classnames = model._digger.class || [];
+    classnames = _.without(classnames, classname);
+    model._digger.class = classnames;
+  })
+  return this;
+}
+
+Container.prototype.hasClass = function(classname){
+   return _.contains((this.classnames() || []), classname);
+}
+
+Container.prototype.hasAttr = function(name){
+  return !_.isEmpty(this.attr(name));
+}
+
+Container.prototype.isEmpty = function(){
+  return this.count()===0;
+}
+
+Container.prototype.inject_data = function(data){
+  _.extend(this.get(0), data);
+  return this;
+}
+
+/*
+
+  string summary
+  
+*/
+
+Container.prototype.title = function(){
+  var name = this.attr('name');
+  if(!name){
+    name = this.attr('title');
+  }
+  if(!name){
+    name = this.tag();
+  }
+  return name;
+}
+
+Container.prototype.summary = function(options){
+
+  options = options || {};
+
+  var parts = [];
+
+  var title = (this.attr('name') || this.attr('title') || '')
+  if(title.length>0 && options.title!==false){
+    parts.push(title + ': ');
+  }
+
+  parts.push(this.tag());
+
+  var id = this.id() || '';
+  if(id.length>0){
+    parts.push('#' + id);
+  }
+
+  var classnames = this.classnames() || [];
+  if(classnames.length>0){
+    parts = parts.concat(_.map(classnames, function(classname){
+      return '.' + classname
+    }))
+  }
+
+
+
+  return parts.join('');
+}
+
+Container.prototype.toString = function(){
+  return this.summary();
+}
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  FINDER
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+
+
+/*
+
+  sync search through local container data matching selectors
+  
+*/
+Container.prototype.find = Finder.find;
+
+/*
+
+  sync search through local container data matching selectors
+  
+*/
+Container.prototype.sort = Finder.sort;
+
+/*
+
+  run the filter function over each container individually
+  and return a container with the ones that passed (by return true classic filter style)
+  
+*/
+Container.prototype.filter = Finder.filter;
+
+Container.prototype.match = Finder.match;
+
+
+/*
+
+
+
+
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  CONTRACT ACTIONS
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+  --------------------------------------------------------------------------------
+
+
+ */
+
+Container.prototype.bindcontract = Contracts.bindcontract;
+Container.prototype.select = Contracts.select;
+Container.prototype.append = Contracts.append;
+Container.prototype.save = Contracts.save;
+Container.prototype.remove = Contracts.remove;
+},{"./contracts":18,"./deepdot":16,"./models":17,"./search":19,"async":20,"digger-utils":14,"events":4,"lodash":11}],15:[function(require,module,exports){
+(function(process){// vim:ts=4:sts=4:sw=4:
+/*!
+ *
+ * Copyright 2009-2012 Kris Kowal under the terms of the MIT
+ * license found at http://github.com/kriskowal/q/raw/master/LICENSE
+ *
+ * With parts by Tyler Close
+ * Copyright 2007-2009 Tyler Close under the terms of the MIT X license found
+ * at http://www.opensource.org/licenses/mit-license.html
+ * Forked at ref_send.js version: 2009-05-11
+ *
+ * With parts by Mark Miller
+ * Copyright (C) 2011 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+(function (definition) {
+    // Turn off strict mode for this function so we can assign to global.Q
+    /* jshint strict: false */
+
+    // This file will function properly as a <script> tag, or a module
+    // using CommonJS and NodeJS or RequireJS module formats.  In
+    // Common/Node/RequireJS, the module exports the Q API and when
+    // executed as a simple <script>, it creates a Q global instead.
+
+    // Montage Require
+    if (typeof bootstrap === "function") {
+        bootstrap("promise", definition);
+
+    // CommonJS
+    } else if (typeof exports === "object") {
+        module.exports = definition();
+
+    // RequireJS
+    } else if (typeof define === "function" && define.amd) {
+        define(definition);
+
+    // SES (Secure EcmaScript)
+    } else if (typeof ses !== "undefined") {
+        if (!ses.ok()) {
+            return;
+        } else {
+            ses.makeQ = definition;
+        }
+
+    // <script>
+    } else {
+        Q = definition();
+    }
+
+})(function () {
+"use strict";
+
+var hasStacks = false;
+try {
+    throw new Error();
+} catch (e) {
+    hasStacks = !!e.stack;
+}
+
+// All code after this point will be filtered from stack traces reported
+// by Q.
+var qStartingLine = captureLine();
+var qFileName;
+
+// shims
+
+// used for fallback in "allResolved"
+var noop = function () {};
+
+// Use the fastest possible means to execute a task in a future turn
+// of the event loop.
+var nextTick =(function () {
+    // linked list of tasks (single, with head node)
+    var head = {task: void 0, next: null};
+    var tail = head;
+    var flushing = false;
+    var requestTick = void 0;
+    var isNodeJS = false;
+
+    function flush() {
+        while (head.next) {
+            head = head.next;
+            var task = head.task;
+            head.task = void 0;
+            var domain = head.domain;
+
+            if (domain) {
+                head.domain = void 0;
+                domain.enter();
+            }
+
+            try {
+                task();
+
+            } catch (e) {
+                if (isNodeJS) {
+                    // In node, uncaught exceptions are considered fatal errors.
+                    // Re-throw them synchronously to interrupt flushing!
+
+                    // Ensure continuation if the uncaught exception is suppressed
+                    // listening "uncaughtException" events (as domains does).
+                    // Continue in next event to avoid tick recursion.
+                    domain && domain.exit();
+                    setTimeout(flush, 0);
+                    domain && domain.enter();
+
+                    throw e;
+
+                } else {
+                    // In browsers, uncaught exceptions are not fatal.
+                    // Re-throw them asynchronously to avoid slow-downs.
+                    setTimeout(function() {
+                       throw e;
+                    }, 0);
+                }
+            }
+
+            if (domain) {
+                domain.exit();
+            }
+        }
+
+        flushing = false;
+    }
+
+    nextTick = function (task) {
+        tail = tail.next = {
+            task: task,
+            domain: isNodeJS && process.domain,
+            next: null
+        };
+
+        if (!flushing) {
+            flushing = true;
+            requestTick();
+        }
+    };
+
+    if (typeof process !== "undefined" && process.nextTick) {
+        // Node.js before 0.9. Note that some fake-Node environments, like the
+        // Mocha test runner, introduce a `process` global without a `nextTick`.
+        isNodeJS = true;
+
+        requestTick = function () {
+            process.nextTick(flush);
+        };
+
+    } else if (typeof setImmediate === "function") {
+        // In IE10, Node.js 0.9+, or https://github.com/NobleJS/setImmediate
+        if (typeof window !== "undefined") {
+            requestTick = setImmediate.bind(window, flush);
+        } else {
+            requestTick = function () {
+                setImmediate(flush);
+            };
+        }
+
+    } else if (typeof MessageChannel !== "undefined") {
+        // modern browsers
+        // http://www.nonblocking.io/2011/06/windownexttick.html
+        var channel = new MessageChannel();
+        channel.port1.onmessage = flush;
+        requestTick = function () {
+            channel.port2.postMessage(0);
+        };
+
+    } else {
+        // old browsers
+        requestTick = function () {
+            setTimeout(flush, 0);
+        };
+    }
+
+    return nextTick;
+})();
+
+// Attempt to make generics safe in the face of downstream
+// modifications.
+// There is no situation where this is necessary.
+// If you need a security guarantee, these primordials need to be
+// deeply frozen anyway, and if you don’t need a security guarantee,
+// this is just plain paranoid.
+// However, this does have the nice side-effect of reducing the size
+// of the code by reducing x.call() to merely x(), eliminating many
+// hard-to-minify characters.
+// See Mark Miller’s explanation of what this does.
+// http://wiki.ecmascript.org/doku.php?id=conventions:safe_meta_programming
+function uncurryThis(f) {
+    var call = Function.call;
+    return function () {
+        return call.apply(f, arguments);
+    };
+}
+// This is equivalent, but slower:
+// uncurryThis = Function_bind.bind(Function_bind.call);
+// http://jsperf.com/uncurrythis
+
+var array_slice = uncurryThis(Array.prototype.slice);
+
+var array_reduce = uncurryThis(
+    Array.prototype.reduce || function (callback, basis) {
+        var index = 0,
+            length = this.length;
+        // concerning the initial value, if one is not provided
+        if (arguments.length === 1) {
+            // seek to the first value in the array, accounting
+            // for the possibility that is is a sparse array
+            do {
+                if (index in this) {
+                    basis = this[index++];
+                    break;
+                }
+                if (++index >= length) {
+                    throw new TypeError();
+                }
+            } while (1);
+        }
+        // reduce
+        for (; index < length; index++) {
+            // account for the possibility that the array is sparse
+            if (index in this) {
+                basis = callback(basis, this[index], index);
+            }
+        }
+        return basis;
+    }
+);
+
+var array_indexOf = uncurryThis(
+    Array.prototype.indexOf || function (value) {
+        // not a very good shim, but good enough for our one use of it
+        for (var i = 0; i < this.length; i++) {
+            if (this[i] === value) {
+                return i;
+            }
+        }
+        return -1;
+    }
+);
+
+var array_map = uncurryThis(
+    Array.prototype.map || function (callback, thisp) {
+        var self = this;
+        var collect = [];
+        array_reduce(self, function (undefined, value, index) {
+            collect.push(callback.call(thisp, value, index, self));
+        }, void 0);
+        return collect;
+    }
+);
+
+var object_create = Object.create || function (prototype) {
+    function Type() { }
+    Type.prototype = prototype;
+    return new Type();
 };
 
-module.exports = function extend() {
-	var options, name, src, copy, copyIsArray, clone,
-	    target = arguments[0] || {},
-	    i = 1,
-	    length = arguments.length,
-	    deep = false;
+var object_hasOwnProperty = uncurryThis(Object.prototype.hasOwnProperty);
 
-	// Handle a deep copy situation
-	if ( typeof target === "boolean" ) {
-		deep = target;
-		target = arguments[1] || {};
-		// skip the boolean and the target
-		i = 2;
-	}
-
-	// Handle case when target is a string or something (possible in deep copy)
-	if ( typeof target !== "object" && typeof target !== "function") {
-		target = {};
-	}
-
-	for ( ; i < length; i++ ) {
-		// Only deal with non-null/undefined values
-		if ( (options = arguments[ i ]) != null ) {
-			// Extend the base object
-			for ( name in options ) {
-				src = target[ name ];
-				copy = options[ name ];
-
-				// Prevent never-ending loop
-				if ( target === copy ) {
-					continue;
-				}
-
-				// Recurse if we're merging plain objects or arrays
-				if ( deep && copy && ( isPlainObject(copy) || (copyIsArray = Array.isArray(copy)) ) ) {
-					if ( copyIsArray ) {
-						copyIsArray = false;
-						clone = src && Array.isArray(src) ? src : [];
-
-					} else {
-						clone = src && isPlainObject(src) ? src : {};
-					}
-
-					// Never move original objects, clone them
-					target[ name ] = extend( deep, clone, copy );
-
-				// Don't bring in undefined values
-				} else if ( copy !== undefined ) {
-					target[ name ] = copy;
-				}
-			}
-		}
-	}
-
-	// Return the modified object
-	return target;
+var object_keys = Object.keys || function (object) {
+    var keys = [];
+    for (var key in object) {
+        if (object_hasOwnProperty(object, key)) {
+            keys.push(key);
+        }
+    }
+    return keys;
 };
 
-},{}],7:[function(require,module,exports){
+var object_toString = uncurryThis(Object.prototype.toString);
+
+function isObject(value) {
+    return value === Object(value);
+}
+
+// generator related shims
+
+// FIXME: Remove this function once ES6 generators are in SpiderMonkey.
+function isStopIteration(exception) {
+    return (
+        object_toString(exception) === "[object StopIteration]" ||
+        exception instanceof QReturnValue
+    );
+}
+
+// FIXME: Remove this helper and Q.return once ES6 generators are in
+// SpiderMonkey.
+var QReturnValue;
+if (typeof ReturnValue !== "undefined") {
+    QReturnValue = ReturnValue;
+} else {
+    QReturnValue = function (value) {
+        this.value = value;
+    };
+}
+
+// Until V8 3.19 / Chromium 29 is released, SpiderMonkey is the only
+// engine that has a deployed base of browsers that support generators.
+// However, SM's generators use the Python-inspired semantics of
+// outdated ES6 drafts.  We would like to support ES6, but we'd also
+// like to make it possible to use generators in deployed browsers, so
+// we also support Python-style generators.  At some point we can remove
+// this block.
+var hasES6Generators;
+try {
+    /* jshint evil: true, nonew: false */
+    new Function("(function* (){ yield 1; })");
+    hasES6Generators = true;
+} catch (e) {
+    hasES6Generators = false;
+}
+
+// long stack traces
+
+var STACK_JUMP_SEPARATOR = "From previous event:";
+
+function makeStackTraceLong(error, promise) {
+    // If possible, transform the error stack trace by removing Node and Q
+    // cruft, then concatenating with the stack trace of `promise`. See #57.
+    if (hasStacks &&
+        promise.stack &&
+        typeof error === "object" &&
+        error !== null &&
+        error.stack &&
+        error.stack.indexOf(STACK_JUMP_SEPARATOR) === -1
+    ) {
+        var stacks = [];
+        for (var p = promise; !!p; p = p.source) {
+            if (p.stack) {
+                stacks.unshift(p.stack);
+            }
+        }
+        stacks.unshift(error.stack);
+
+        var concatedStacks = stacks.join("\n" + STACK_JUMP_SEPARATOR + "\n");
+        error.stack = filterStackString(concatedStacks);
+    }
+}
+
+function filterStackString(stackString) {
+    var lines = stackString.split("\n");
+    var desiredLines = [];
+    for (var i = 0; i < lines.length; ++i) {
+        var line = lines[i];
+
+        if (!isInternalFrame(line) && !isNodeFrame(line) && line) {
+            desiredLines.push(line);
+        }
+    }
+    return desiredLines.join("\n");
+}
+
+function isNodeFrame(stackLine) {
+    return stackLine.indexOf("(module.js:") !== -1 ||
+           stackLine.indexOf("(node.js:") !== -1;
+}
+
+function getFileNameAndLineNumber(stackLine) {
+    // Named functions: "at functionName (filename:lineNumber:columnNumber)"
+    // In IE10 function name can have spaces ("Anonymous function") O_o
+    var attempt1 = /at .+ \((.+):(\d+):(?:\d+)\)$/.exec(stackLine);
+    if (attempt1) {
+        return [attempt1[1], Number(attempt1[2])];
+    }
+
+    // Anonymous functions: "at filename:lineNumber:columnNumber"
+    var attempt2 = /at ([^ ]+):(\d+):(?:\d+)$/.exec(stackLine);
+    if (attempt2) {
+        return [attempt2[1], Number(attempt2[2])];
+    }
+
+    // Firefox style: "function@filename:lineNumber or @filename:lineNumber"
+    var attempt3 = /.*@(.+):(\d+)$/.exec(stackLine);
+    if (attempt3) {
+        return [attempt3[1], Number(attempt3[2])];
+    }
+}
+
+function isInternalFrame(stackLine) {
+    var fileNameAndLineNumber = getFileNameAndLineNumber(stackLine);
+
+    if (!fileNameAndLineNumber) {
+        return false;
+    }
+
+    var fileName = fileNameAndLineNumber[0];
+    var lineNumber = fileNameAndLineNumber[1];
+
+    return fileName === qFileName &&
+        lineNumber >= qStartingLine &&
+        lineNumber <= qEndingLine;
+}
+
+// discover own file name and line number range for filtering stack
+// traces
+function captureLine() {
+    if (!hasStacks) {
+        return;
+    }
+
+    try {
+        throw new Error();
+    } catch (e) {
+        var lines = e.stack.split("\n");
+        var firstLine = lines[0].indexOf("@") > 0 ? lines[1] : lines[2];
+        var fileNameAndLineNumber = getFileNameAndLineNumber(firstLine);
+        if (!fileNameAndLineNumber) {
+            return;
+        }
+
+        qFileName = fileNameAndLineNumber[0];
+        return fileNameAndLineNumber[1];
+    }
+}
+
+function deprecate(callback, name, alternative) {
+    return function () {
+        if (typeof console !== "undefined" &&
+            typeof console.warn === "function") {
+            console.warn(name + " is deprecated, use " + alternative +
+                         " instead.", new Error("").stack);
+        }
+        return callback.apply(callback, arguments);
+    };
+}
+
+// end of shims
+// beginning of real work
+
+/**
+ * Creates fulfilled promises from non-thenables,
+ * Passes Q promises through,
+ * Coerces other thenables to Q promises.
+ */
+function Q(value) {
+    return resolve(value);
+}
+
+/**
+ * Performs a task in a future turn of the event loop.
+ * @param {Function} task
+ */
+Q.nextTick = nextTick;
+
+/**
+ * Controls whether or not long stack traces will be on
+ */
+Q.longStackSupport = false;
+
+/**
+ * Constructs a {promise, resolve, reject} object.
+ *
+ * `resolve` is a callback to invoke with a more resolved value for the
+ * promise. To fulfill the promise, invoke `resolve` with any value that is
+ * not a thenable. To reject the promise, invoke `resolve` with a rejected
+ * thenable, or invoke `reject` with the reason directly. To resolve the
+ * promise to another thenable, thus putting it in the same state, invoke
+ * `resolve` with that other thenable.
+ */
+Q.defer = defer;
+function defer() {
+    // if "messages" is an "Array", that indicates that the promise has not yet
+    // been resolved.  If it is "undefined", it has been resolved.  Each
+    // element of the messages array is itself an array of complete arguments to
+    // forward to the resolved promise.  We coerce the resolution value to a
+    // promise using the `resolve` function because it handles both fully
+    // non-thenable values and other thenables gracefully.
+    var messages = [], progressListeners = [], resolvedPromise;
+
+    var deferred = object_create(defer.prototype);
+    var promise = object_create(Promise.prototype);
+
+    promise.promiseDispatch = function (resolve, op, operands) {
+        var args = array_slice(arguments);
+        if (messages) {
+            messages.push(args);
+            if (op === "when" && operands[1]) { // progress operand
+                progressListeners.push(operands[1]);
+            }
+        } else {
+            nextTick(function () {
+                resolvedPromise.promiseDispatch.apply(resolvedPromise, args);
+            });
+        }
+    };
+
+    // XXX deprecated
+    promise.valueOf = deprecate(function () {
+        if (messages) {
+            return promise;
+        }
+        var nearerValue = nearer(resolvedPromise);
+        if (isPromise(nearerValue)) {
+            resolvedPromise = nearerValue; // shorten chain
+        }
+        return nearerValue;
+    }, "valueOf", "inspect");
+
+    promise.inspect = function () {
+        if (!resolvedPromise) {
+            return { state: "pending" };
+        }
+        return resolvedPromise.inspect();
+    };
+
+    if (Q.longStackSupport && hasStacks) {
+        try {
+            throw new Error();
+        } catch (e) {
+            // NOTE: don't try to use `Error.captureStackTrace` or transfer the
+            // accessor around; that causes memory leaks as per GH-111. Just
+            // reify the stack trace as a string ASAP.
+            //
+            // At the same time, cut off the first line; it's always just
+            // "[object Promise]\n", as per the `toString`.
+            promise.stack = e.stack.substring(e.stack.indexOf("\n") + 1);
+        }
+    }
+
+    // NOTE: we do the checks for `resolvedPromise` in each method, instead of
+    // consolidating them into `become`, since otherwise we'd create new
+    // promises with the lines `become(whatever(value))`. See e.g. GH-252.
+
+    function become(newPromise) {
+        resolvedPromise = newPromise;
+        promise.source = newPromise;
+
+        array_reduce(messages, function (undefined, message) {
+            nextTick(function () {
+                newPromise.promiseDispatch.apply(newPromise, message);
+            });
+        }, void 0);
+
+        messages = void 0;
+        progressListeners = void 0;
+    }
+
+    deferred.promise = promise;
+    deferred.resolve = function (value) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(resolve(value));
+    };
+
+    deferred.fulfill = function (value) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(fulfill(value));
+    };
+    deferred.reject = function (reason) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        become(reject(reason));
+    };
+    deferred.notify = function (progress) {
+        if (resolvedPromise) {
+            return;
+        }
+
+        array_reduce(progressListeners, function (undefined, progressListener) {
+            nextTick(function () {
+                progressListener(progress);
+            });
+        }, void 0);
+    };
+
+    return deferred;
+}
+
+/**
+ * Creates a Node-style callback that will resolve or reject the deferred
+ * promise.
+ * @returns a nodeback
+ */
+defer.prototype.makeNodeResolver = function () {
+    var self = this;
+    return function (error, value) {
+        if (error) {
+            self.reject(error);
+        } else if (arguments.length > 2) {
+            self.resolve(array_slice(arguments, 1));
+        } else {
+            self.resolve(value);
+        }
+    };
+};
+
+/**
+ * @param resolver {Function} a function that returns nothing and accepts
+ * the resolve, reject, and notify functions for a deferred.
+ * @returns a promise that may be resolved with the given resolve and reject
+ * functions, or rejected by a thrown exception in resolver
+ */
+Q.promise = promise;
+function promise(resolver) {
+    if (typeof resolver !== "function") {
+        throw new TypeError("resolver must be a function.");
+    }
+
+    var deferred = defer();
+    fcall(
+        resolver,
+        deferred.resolve,
+        deferred.reject,
+        deferred.notify
+    ).fail(deferred.reject);
+    return deferred.promise;
+}
+
+/**
+ * Constructs a Promise with a promise descriptor object and optional fallback
+ * function.  The descriptor contains methods like when(rejected), get(name),
+ * set(name, value), post(name, args), and delete(name), which all
+ * return either a value, a promise for a value, or a rejection.  The fallback
+ * accepts the operation name, a resolver, and any further arguments that would
+ * have been forwarded to the appropriate method above had a method been
+ * provided with the proper name.  The API makes no guarantees about the nature
+ * of the returned object, apart from that it is usable whereever promises are
+ * bought and sold.
+ */
+Q.makePromise = Promise;
+function Promise(descriptor, fallback, inspect) {
+    if (fallback === void 0) {
+        fallback = function (op) {
+            return reject(new Error(
+                "Promise does not support operation: " + op
+            ));
+        };
+    }
+    if (inspect === void 0) {
+        inspect = function () {
+            return {state: "unknown"};
+        };
+    }
+
+    var promise = object_create(Promise.prototype);
+
+    promise.promiseDispatch = function (resolve, op, args) {
+        var result;
+        try {
+            if (descriptor[op]) {
+                result = descriptor[op].apply(promise, args);
+            } else {
+                result = fallback.call(promise, op, args);
+            }
+        } catch (exception) {
+            result = reject(exception);
+        }
+        if (resolve) {
+            resolve(result);
+        }
+    };
+
+    promise.inspect = inspect;
+
+    // XXX deprecated `valueOf` and `exception` support
+    if (inspect) {
+        var inspected = inspect();
+        if (inspected.state === "rejected") {
+            promise.exception = inspected.reason;
+        }
+
+        promise.valueOf = deprecate(function () {
+            var inspected = inspect();
+            if (inspected.state === "pending" ||
+                inspected.state === "rejected") {
+                return promise;
+            }
+            return inspected.value;
+        });
+    }
+
+    return promise;
+}
+
+Promise.prototype.then = function (fulfilled, rejected, progressed) {
+    var self = this;
+    var deferred = defer();
+    var done = false;   // ensure the untrusted promise makes at most a
+                        // single call to one of the callbacks
+
+    function _fulfilled(value) {
+        try {
+            return typeof fulfilled === "function" ? fulfilled(value) : value;
+        } catch (exception) {
+            return reject(exception);
+        }
+    }
+
+    function _rejected(exception) {
+        if (typeof rejected === "function") {
+            makeStackTraceLong(exception, self);
+            try {
+                return rejected(exception);
+            } catch (newException) {
+                return reject(newException);
+            }
+        }
+        return reject(exception);
+    }
+
+    function _progressed(value) {
+        return typeof progressed === "function" ? progressed(value) : value;
+    }
+
+    nextTick(function () {
+        self.promiseDispatch(function (value) {
+            if (done) {
+                return;
+            }
+            done = true;
+
+            deferred.resolve(_fulfilled(value));
+        }, "when", [function (exception) {
+            if (done) {
+                return;
+            }
+            done = true;
+
+            deferred.resolve(_rejected(exception));
+        }]);
+    });
+
+    // Progress propagator need to be attached in the current tick.
+    self.promiseDispatch(void 0, "when", [void 0, function (value) {
+        var newValue;
+        var threw = false;
+        try {
+            newValue = _progressed(value);
+        } catch (e) {
+            threw = true;
+            if (Q.onerror) {
+                Q.onerror(e);
+            } else {
+                throw e;
+            }
+        }
+
+        if (!threw) {
+            deferred.notify(newValue);
+        }
+    }]);
+
+    return deferred.promise;
+};
+
+Promise.prototype.thenResolve = function (value) {
+    return when(this, function () { return value; });
+};
+
+Promise.prototype.thenReject = function (reason) {
+    return when(this, function () { throw reason; });
+};
+
+// Chainable methods
+array_reduce(
+    [
+        "isFulfilled", "isRejected", "isPending",
+        "dispatch",
+        "when", "spread",
+        "get", "set", "del", "delete",
+        "post", "send", "mapply", "invoke", "mcall",
+        "keys",
+        "fapply", "fcall", "fbind",
+        "all", "allResolved",
+        "timeout", "delay",
+        "catch", "finally", "fail", "fin", "progress", "done",
+        "nfcall", "nfapply", "nfbind", "denodeify", "nbind",
+        "npost", "nsend", "nmapply", "ninvoke", "nmcall",
+        "nodeify"
+    ],
+    function (undefined, name) {
+        Promise.prototype[name] = function () {
+            return Q[name].apply(
+                Q,
+                [this].concat(array_slice(arguments))
+            );
+        };
+    },
+    void 0
+);
+
+Promise.prototype.toSource = function () {
+    return this.toString();
+};
+
+Promise.prototype.toString = function () {
+    return "[object Promise]";
+};
+
+/**
+ * If an object is not a promise, it is as "near" as possible.
+ * If a promise is rejected, it is as "near" as possible too.
+ * If it’s a fulfilled promise, the fulfillment value is nearer.
+ * If it’s a deferred promise and the deferred has been resolved, the
+ * resolution is "nearer".
+ * @param object
+ * @returns most resolved (nearest) form of the object
+ */
+
+// XXX should we re-do this?
+Q.nearer = nearer;
+function nearer(value) {
+    if (isPromise(value)) {
+        var inspected = value.inspect();
+        if (inspected.state === "fulfilled") {
+            return inspected.value;
+        }
+    }
+    return value;
+}
+
+/**
+ * @returns whether the given object is a promise.
+ * Otherwise it is a fulfilled value.
+ */
+Q.isPromise = isPromise;
+function isPromise(object) {
+    return isObject(object) &&
+        typeof object.promiseDispatch === "function" &&
+        typeof object.inspect === "function";
+}
+
+Q.isPromiseAlike = isPromiseAlike;
+function isPromiseAlike(object) {
+    return isObject(object) && typeof object.then === "function";
+}
+
+/**
+ * @returns whether the given object is a pending promise, meaning not
+ * fulfilled or rejected.
+ */
+Q.isPending = isPending;
+function isPending(object) {
+    return isPromise(object) && object.inspect().state === "pending";
+}
+
+/**
+ * @returns whether the given object is a value or fulfilled
+ * promise.
+ */
+Q.isFulfilled = isFulfilled;
+function isFulfilled(object) {
+    return !isPromise(object) || object.inspect().state === "fulfilled";
+}
+
+/**
+ * @returns whether the given object is a rejected promise.
+ */
+Q.isRejected = isRejected;
+function isRejected(object) {
+    return isPromise(object) && object.inspect().state === "rejected";
+}
+
+//// BEGIN UNHANDLED REJECTION TRACKING
+
+// This promise library consumes exceptions thrown in handlers so they can be
+// handled by a subsequent promise.  The exceptions get added to this array when
+// they are created, and removed when they are handled.  Note that in ES6 or
+// shimmed environments, this would naturally be a `Set`.
+var unhandledReasons = [];
+var unhandledRejections = [];
+var unhandledReasonsDisplayed = false;
+var trackUnhandledRejections = true;
+function displayUnhandledReasons() {
+    if (
+        !unhandledReasonsDisplayed &&
+        typeof window !== "undefined" &&
+        !window.Touch &&
+        window.console
+    ) {
+        console.warn("[Q] Unhandled rejection reasons (should be empty):",
+                     unhandledReasons);
+    }
+
+    unhandledReasonsDisplayed = true;
+}
+
+function logUnhandledReasons() {
+    for (var i = 0; i < unhandledReasons.length; i++) {
+        var reason = unhandledReasons[i];
+        if (reason && typeof reason.stack !== "undefined") {
+            console.warn("Unhandled rejection reason:", reason.stack);
+        } else {
+            console.warn("Unhandled rejection reason (no stack):", reason);
+        }
+    }
+}
+
+function resetUnhandledRejections() {
+    unhandledReasons.length = 0;
+    unhandledRejections.length = 0;
+    unhandledReasonsDisplayed = false;
+
+    if (!trackUnhandledRejections) {
+        trackUnhandledRejections = true;
+
+        // Show unhandled rejection reasons if Node exits without handling an
+        // outstanding rejection.  (Note that Browserify presently produces a
+        // `process` global without the `EventEmitter` `on` method.)
+        if (typeof process !== "undefined" && process.on) {
+            process.on("exit", logUnhandledReasons);
+        }
+    }
+}
+
+function trackRejection(promise, reason) {
+    if (!trackUnhandledRejections) {
+        return;
+    }
+
+    unhandledRejections.push(promise);
+    unhandledReasons.push(reason);
+    displayUnhandledReasons();
+}
+
+function untrackRejection(promise) {
+    if (!trackUnhandledRejections) {
+        return;
+    }
+
+    var at = array_indexOf(unhandledRejections, promise);
+    if (at !== -1) {
+        unhandledRejections.splice(at, 1);
+        unhandledReasons.splice(at, 1);
+    }
+}
+
+Q.resetUnhandledRejections = resetUnhandledRejections;
+
+Q.getUnhandledReasons = function () {
+    // Make a copy so that consumers can't interfere with our internal state.
+    return unhandledReasons.slice();
+};
+
+Q.stopUnhandledRejectionTracking = function () {
+    resetUnhandledRejections();
+    if (typeof process !== "undefined" && process.on) {
+        process.removeListener("exit", logUnhandledReasons);
+    }
+    trackUnhandledRejections = false;
+};
+
+resetUnhandledRejections();
+
+//// END UNHANDLED REJECTION TRACKING
+
+/**
+ * Constructs a rejected promise.
+ * @param reason value describing the failure
+ */
+Q.reject = reject;
+function reject(reason) {
+    var rejection = Promise({
+        "when": function (rejected) {
+            // note that the error has been handled
+            if (rejected) {
+                untrackRejection(this);
+            }
+            return rejected ? rejected(reason) : this;
+        }
+    }, function fallback() {
+        return this;
+    }, function inspect() {
+        return { state: "rejected", reason: reason };
+    });
+
+    // Note that the reason has not been handled.
+    trackRejection(rejection, reason);
+
+    return rejection;
+}
+
+/**
+ * Constructs a fulfilled promise for an immediate reference.
+ * @param value immediate reference
+ */
+Q.fulfill = fulfill;
+function fulfill(value) {
+    return Promise({
+        "when": function () {
+            return value;
+        },
+        "get": function (name) {
+            return value[name];
+        },
+        "set": function (name, rhs) {
+            value[name] = rhs;
+        },
+        "delete": function (name) {
+            delete value[name];
+        },
+        "post": function (name, args) {
+            // Mark Miller proposes that post with no name should apply a
+            // promised function.
+            if (name === null || name === void 0) {
+                return value.apply(void 0, args);
+            } else {
+                return value[name].apply(value, args);
+            }
+        },
+        "apply": function (thisP, args) {
+            return value.apply(thisP, args);
+        },
+        "keys": function () {
+            return object_keys(value);
+        }
+    }, void 0, function inspect() {
+        return { state: "fulfilled", value: value };
+    });
+}
+
+/**
+ * Constructs a promise for an immediate reference, passes promises through, or
+ * coerces promises from different systems.
+ * @param value immediate reference or promise
+ */
+Q.resolve = resolve;
+function resolve(value) {
+    // If the object is already a Promise, return it directly.  This enables
+    // the resolve function to both be used to created references from objects,
+    // but to tolerably coerce non-promises to promises.
+    if (isPromise(value)) {
+        return value;
+    }
+
+    // assimilate thenables
+    if (isPromiseAlike(value)) {
+        return coerce(value);
+    } else {
+        return fulfill(value);
+    }
+}
+
+/**
+ * Converts thenables to Q promises.
+ * @param promise thenable promise
+ * @returns a Q promise
+ */
+function coerce(promise) {
+    var deferred = defer();
+    nextTick(function () {
+        try {
+            promise.then(deferred.resolve, deferred.reject, deferred.notify);
+        } catch (exception) {
+            deferred.reject(exception);
+        }
+    });
+    return deferred.promise;
+}
+
+/**
+ * Annotates an object such that it will never be
+ * transferred away from this process over any promise
+ * communication channel.
+ * @param object
+ * @returns promise a wrapping of that object that
+ * additionally responds to the "isDef" message
+ * without a rejection.
+ */
+Q.master = master;
+function master(object) {
+    return Promise({
+        "isDef": function () {}
+    }, function fallback(op, args) {
+        return dispatch(object, op, args);
+    }, function () {
+        return resolve(object).inspect();
+    });
+}
+
+/**
+ * Registers an observer on a promise.
+ *
+ * Guarantees:
+ *
+ * 1. that fulfilled and rejected will be called only once.
+ * 2. that either the fulfilled callback or the rejected callback will be
+ *    called, but not both.
+ * 3. that fulfilled and rejected will not be called in this turn.
+ *
+ * @param value      promise or immediate reference to observe
+ * @param fulfilled  function to be called with the fulfilled value
+ * @param rejected   function to be called with the rejection exception
+ * @param progressed function to be called on any progress notifications
+ * @return promise for the return value from the invoked callback
+ */
+Q.when = when;
+function when(value, fulfilled, rejected, progressed) {
+    return Q(value).then(fulfilled, rejected, progressed);
+}
+
+/**
+ * Spreads the values of a promised array of arguments into the
+ * fulfillment callback.
+ * @param fulfilled callback that receives variadic arguments from the
+ * promised array
+ * @param rejected callback that receives the exception if the promise
+ * is rejected.
+ * @returns a promise for the return value or thrown exception of
+ * either callback.
+ */
+Q.spread = spread;
+function spread(promise, fulfilled, rejected) {
+    return when(promise, function (valuesOrPromises) {
+        return all(valuesOrPromises).then(function (values) {
+            return fulfilled.apply(void 0, values);
+        }, rejected);
+    }, rejected);
+}
+
+/**
+ * The async function is a decorator for generator functions, turning
+ * them into asynchronous generators.  Although generators are only part
+ * of the newest ECMAScript 6 drafts, this code does not cause syntax
+ * errors in older engines.  This code should continue to work and will
+ * in fact improve over time as the language improves.
+ *
+ * ES6 generators are currently part of V8 version 3.19 with the
+ * --harmony-generators runtime flag enabled.  SpiderMonkey has had them
+ * for longer, but under an older Python-inspired form.  This function
+ * works on both kinds of generators.
+ *
+ * Decorates a generator function such that:
+ *  - it may yield promises
+ *  - execution will continue when that promise is fulfilled
+ *  - the value of the yield expression will be the fulfilled value
+ *  - it returns a promise for the return value (when the generator
+ *    stops iterating)
+ *  - the decorated function returns a promise for the return value
+ *    of the generator or the first rejected promise among those
+ *    yielded.
+ *  - if an error is thrown in the generator, it propagates through
+ *    every following yield until it is caught, or until it escapes
+ *    the generator function altogether, and is translated into a
+ *    rejection for the promise returned by the decorated generator.
+ */
+Q.async = async;
+function async(makeGenerator) {
+    return function () {
+        // when verb is "send", arg is a value
+        // when verb is "throw", arg is an exception
+        function continuer(verb, arg) {
+            var result;
+            if (hasES6Generators) {
+                try {
+                    result = generator[verb](arg);
+                } catch (exception) {
+                    return reject(exception);
+                }
+                if (result.done) {
+                    return result.value;
+                } else {
+                    return when(result.value, callback, errback);
+                }
+            } else {
+                // FIXME: Remove this case when SM does ES6 generators.
+                try {
+                    result = generator[verb](arg);
+                } catch (exception) {
+                    if (isStopIteration(exception)) {
+                        return exception.value;
+                    } else {
+                        return reject(exception);
+                    }
+                }
+                return when(result, callback, errback);
+            }
+        }
+        var generator = makeGenerator.apply(this, arguments);
+        var callback = continuer.bind(continuer, "send");
+        var errback = continuer.bind(continuer, "throw");
+        return callback();
+    };
+}
+
+/**
+ * The spawn function is a small wrapper around async that immediately
+ * calls the generator and also ends the promise chain, so that any
+ * unhandled errors are thrown instead of forwarded to the error
+ * handler. This is useful because it's extremely common to run
+ * generators at the top-level to work with libraries.
+ */
+Q.spawn = spawn;
+function spawn(makeGenerator) {
+    Q.done(Q.async(makeGenerator)());
+}
+
+// FIXME: Remove this interface once ES6 generators are in SpiderMonkey.
+/**
+ * Throws a ReturnValue exception to stop an asynchronous generator.
+ *
+ * This interface is a stop-gap measure to support generator return
+ * values in older Firefox/SpiderMonkey.  In browsers that support ES6
+ * generators like Chromium 29, just use "return" in your generator
+ * functions.
+ *
+ * @param value the return value for the surrounding generator
+ * @throws ReturnValue exception with the value.
+ * @example
+ * // ES6 style
+ * Q.async(function* () {
+ *      var foo = yield getFooPromise();
+ *      var bar = yield getBarPromise();
+ *      return foo + bar;
+ * })
+ * // Older SpiderMonkey style
+ * Q.async(function () {
+ *      var foo = yield getFooPromise();
+ *      var bar = yield getBarPromise();
+ *      Q.return(foo + bar);
+ * })
+ */
+Q["return"] = _return;
+function _return(value) {
+    throw new QReturnValue(value);
+}
+
+/**
+ * The promised function decorator ensures that any promise arguments
+ * are settled and passed as values (`this` is also settled and passed
+ * as a value).  It will also ensure that the result of a function is
+ * always a promise.
+ *
+ * @example
+ * var add = Q.promised(function (a, b) {
+ *     return a + b;
+ * });
+ * add(Q.resolve(a), Q.resolve(B));
+ *
+ * @param {function} callback The function to decorate
+ * @returns {function} a function that has been decorated.
+ */
+Q.promised = promised;
+function promised(callback) {
+    return function () {
+        return spread([this, all(arguments)], function (self, args) {
+            return callback.apply(self, args);
+        });
+    };
+}
+
+/**
+ * sends a message to a value in a future turn
+ * @param object* the recipient
+ * @param op the name of the message operation, e.g., "when",
+ * @param args further arguments to be forwarded to the operation
+ * @returns result {Promise} a promise for the result of the operation
+ */
+Q.dispatch = dispatch;
+function dispatch(object, op, args) {
+    var deferred = defer();
+    nextTick(function () {
+        resolve(object).promiseDispatch(deferred.resolve, op, args);
+    });
+    return deferred.promise;
+}
+
+/**
+ * Constructs a promise method that can be used to safely observe resolution of
+ * a promise for an arbitrarily named method like "propfind" in a future turn.
+ *
+ * "dispatcher" constructs methods like "get(promise, name)" and "set(promise)".
+ */
+Q.dispatcher = dispatcher;
+function dispatcher(op) {
+    return function (object) {
+        var args = array_slice(arguments, 1);
+        return dispatch(object, op, args);
+    };
+}
+
+/**
+ * Gets the value of a property in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of property to get
+ * @return promise for the property value
+ */
+Q.get = dispatcher("get");
+
+/**
+ * Sets the value of a property in a future turn.
+ * @param object    promise or immediate reference for object object
+ * @param name      name of property to set
+ * @param value     new value of property
+ * @return promise for the return value
+ */
+Q.set = dispatcher("set");
+
+/**
+ * Deletes a property in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of property to delete
+ * @return promise for the return value
+ */
+Q["delete"] = // XXX experimental
+Q.del = dispatcher("delete");
+
+/**
+ * Invokes a method in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of method to invoke
+ * @param value     a value to post, typically an array of
+ *                  invocation arguments for promises that
+ *                  are ultimately backed with `resolve` values,
+ *                  as opposed to those backed with URLs
+ *                  wherein the posted value can be any
+ *                  JSON serializable object.
+ * @return promise for the return value
+ */
+// bound locally because it is used by other methods
+var post = Q.post = dispatcher("post");
+Q.mapply = post; // experimental
+
+/**
+ * Invokes a method in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @param name      name of method to invoke
+ * @param ...args   array of invocation arguments
+ * @return promise for the return value
+ */
+Q.send = send;
+Q.invoke = send; // synonyms
+Q.mcall = send; // experimental
+function send(value, name) {
+    var args = array_slice(arguments, 2);
+    return post(value, name, args);
+}
+
+/**
+ * Applies the promised function in a future turn.
+ * @param object    promise or immediate reference for target function
+ * @param args      array of application arguments
+ */
+Q.fapply = fapply;
+function fapply(value, args) {
+    return dispatch(value, "apply", [void 0, args]);
+}
+
+/**
+ * Calls the promised function in a future turn.
+ * @param object    promise or immediate reference for target function
+ * @param ...args   array of application arguments
+ */
+Q["try"] = fcall; // XXX experimental
+Q.fcall = fcall;
+function fcall(value) {
+    var args = array_slice(arguments, 1);
+    return fapply(value, args);
+}
+
+/**
+ * Binds the promised function, transforming return values into a fulfilled
+ * promise and thrown errors into a rejected one.
+ * @param object    promise or immediate reference for target function
+ * @param ...args   array of application arguments
+ */
+Q.fbind = fbind;
+function fbind(value) {
+    var args = array_slice(arguments, 1);
+    return function fbound() {
+        var allArgs = args.concat(array_slice(arguments));
+        return dispatch(value, "apply", [this, allArgs]);
+    };
+}
+
+/**
+ * Requests the names of the owned properties of a promised
+ * object in a future turn.
+ * @param object    promise or immediate reference for target object
+ * @return promise for the keys of the eventually settled object
+ */
+Q.keys = dispatcher("keys");
+
+/**
+ * Turns an array of promises into a promise for an array.  If any of
+ * the promises gets rejected, the whole array is rejected immediately.
+ * @param {Array*} an array (or promise for an array) of values (or
+ * promises for values)
+ * @returns a promise for an array of the corresponding values
+ */
+// By Mark Miller
+// http://wiki.ecmascript.org/doku.php?id=strawman:concurrency&rev=1308776521#allfulfilled
+Q.all = all;
+function all(promises) {
+    return when(promises, function (promises) {
+        var countDown = 0;
+        var deferred = defer();
+        array_reduce(promises, function (undefined, promise, index) {
+            var snapshot;
+            if (
+                isPromise(promise) &&
+                (snapshot = promise.inspect()).state === "fulfilled"
+            ) {
+                promises[index] = snapshot.value;
+            } else {
+                ++countDown;
+                when(promise, function (value) {
+                    promises[index] = value;
+                    if (--countDown === 0) {
+                        deferred.resolve(promises);
+                    }
+                }, deferred.reject);
+            }
+        }, void 0);
+        if (countDown === 0) {
+            deferred.resolve(promises);
+        }
+        return deferred.promise;
+    });
+}
+
+/**
+ * Waits for all promises to be settled, either fulfilled or
+ * rejected.  This is distinct from `all` since that would stop
+ * waiting at the first rejection.  The promise returned by
+ * `allResolved` will never be rejected.
+ * @param promises a promise for an array (or an array) of promises
+ * (or values)
+ * @return a promise for an array of promises
+ */
+Q.allResolved = deprecate(allResolved, "allResolved", "allSettled");
+function allResolved(promises) {
+    return when(promises, function (promises) {
+        promises = array_map(promises, resolve);
+        return when(all(array_map(promises, function (promise) {
+            return when(promise, noop, noop);
+        })), function () {
+            return promises;
+        });
+    });
+}
+
+Q.allSettled = allSettled;
+function allSettled(values) {
+    return when(values, function (values) {
+        return all(array_map(values, function (value, i) {
+            return when(
+                value,
+                function (fulfillmentValue) {
+                    values[i] = { state: "fulfilled", value: fulfillmentValue };
+                    return values[i];
+                },
+                function (reason) {
+                    values[i] = { state: "rejected", reason: reason };
+                    return values[i];
+                }
+            );
+        })).thenResolve(values);
+    });
+}
+
+/**
+ * Captures the failure of a promise, giving an oportunity to recover
+ * with a callback.  If the given promise is fulfilled, the returned
+ * promise is fulfilled.
+ * @param {Any*} promise for something
+ * @param {Function} callback to fulfill the returned promise if the
+ * given promise is rejected
+ * @returns a promise for the return value of the callback
+ */
+Q["catch"] = // XXX experimental
+Q.fail = fail;
+function fail(promise, rejected) {
+    return when(promise, void 0, rejected);
+}
+
+/**
+ * Attaches a listener that can respond to progress notifications from a
+ * promise's originating deferred. This listener receives the exact arguments
+ * passed to ``deferred.notify``.
+ * @param {Any*} promise for something
+ * @param {Function} callback to receive any progress notifications
+ * @returns the given promise, unchanged
+ */
+Q.progress = progress;
+function progress(promise, progressed) {
+    return when(promise, void 0, void 0, progressed);
+}
+
+/**
+ * Provides an opportunity to observe the settling of a promise,
+ * regardless of whether the promise is fulfilled or rejected.  Forwards
+ * the resolution to the returned promise when the callback is done.
+ * The callback can return a promise to defer completion.
+ * @param {Any*} promise
+ * @param {Function} callback to observe the resolution of the given
+ * promise, takes no arguments.
+ * @returns a promise for the resolution of the given promise when
+ * ``fin`` is done.
+ */
+Q["finally"] = // XXX experimental
+Q.fin = fin;
+function fin(promise, callback) {
+    return when(promise, function (value) {
+        return when(callback(), function () {
+            return value;
+        });
+    }, function (exception) {
+        return when(callback(), function () {
+            return reject(exception);
+        });
+    });
+}
+
+/**
+ * Terminates a chain of promises, forcing rejections to be
+ * thrown as exceptions.
+ * @param {Any*} promise at the end of a chain of promises
+ * @returns nothing
+ */
+Q.done = done;
+function done(promise, fulfilled, rejected, progress) {
+    var onUnhandledError = function (error) {
+        // forward to a future turn so that ``when``
+        // does not catch it and turn it into a rejection.
+        nextTick(function () {
+            makeStackTraceLong(error, promise);
+
+            if (Q.onerror) {
+                Q.onerror(error);
+            } else {
+                throw error;
+            }
+        });
+    };
+
+    // Avoid unnecessary `nextTick`ing via an unnecessary `when`.
+    var promiseToHandle = fulfilled || rejected || progress ?
+        when(promise, fulfilled, rejected, progress) :
+        promise;
+
+    if (typeof process === "object" && process && process.domain) {
+        onUnhandledError = process.domain.bind(onUnhandledError);
+    }
+    fail(promiseToHandle, onUnhandledError);
+}
+
+/**
+ * Causes a promise to be rejected if it does not get fulfilled before
+ * some milliseconds time out.
+ * @param {Any*} promise
+ * @param {Number} milliseconds timeout
+ * @param {String} custom error message (optional)
+ * @returns a promise for the resolution of the given promise if it is
+ * fulfilled before the timeout, otherwise rejected.
+ */
+Q.timeout = timeout;
+function timeout(promise, ms, msg) {
+    var deferred = defer();
+    var timeoutId = setTimeout(function () {
+        deferred.reject(new Error(msg || "Timed out after " + ms + " ms"));
+    }, ms);
+
+    when(promise, function (value) {
+        clearTimeout(timeoutId);
+        deferred.resolve(value);
+    }, function (exception) {
+        clearTimeout(timeoutId);
+        deferred.reject(exception);
+    }, deferred.notify);
+
+    return deferred.promise;
+}
+
+/**
+ * Returns a promise for the given value (or promised value) after some
+ * milliseconds.
+ * @param {Any*} promise
+ * @param {Number} milliseconds
+ * @returns a promise for the resolution of the given promise after some
+ * time has elapsed.
+ */
+Q.delay = delay;
+function delay(promise, timeout) {
+    if (timeout === void 0) {
+        timeout = promise;
+        promise = void 0;
+    }
+
+    var deferred = defer();
+
+    when(promise, undefined, undefined, deferred.notify);
+    setTimeout(function () {
+        deferred.resolve(promise);
+    }, timeout);
+
+    return deferred.promise;
+}
+
+/**
+ * Passes a continuation to a Node function, which is called with the given
+ * arguments provided as an array, and returns a promise.
+ *
+ *      Q.nfapply(FS.readFile, [__filename])
+ *      .then(function (content) {
+ *      })
+ *
+ */
+Q.nfapply = nfapply;
+function nfapply(callback, args) {
+    var nodeArgs = array_slice(args);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+
+    fapply(callback, nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+}
+
+/**
+ * Passes a continuation to a Node function, which is called with the given
+ * arguments provided individually, and returns a promise.
+ *
+ *      Q.nfcall(FS.readFile, __filename)
+ *      .then(function (content) {
+ *      })
+ *
+ */
+Q.nfcall = nfcall;
+function nfcall(callback/*, ...args */) {
+    var nodeArgs = array_slice(arguments, 1);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+
+    fapply(callback, nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+}
+
+/**
+ * Wraps a NodeJS continuation passing function and returns an equivalent
+ * version that returns a promise.
+ *
+ *      Q.nfbind(FS.readFile, __filename)("utf-8")
+ *      .then(console.log)
+ *      .done()
+ *
+ */
+Q.nfbind = nfbind;
+Q.denodeify = Q.nfbind; // synonyms
+function nfbind(callback/*, ...args */) {
+    var baseArgs = array_slice(arguments, 1);
+    return function () {
+        var nodeArgs = baseArgs.concat(array_slice(arguments));
+        var deferred = defer();
+        nodeArgs.push(deferred.makeNodeResolver());
+
+        fapply(callback, nodeArgs).fail(deferred.reject);
+        return deferred.promise;
+    };
+}
+
+Q.nbind = nbind;
+function nbind(callback, thisArg /*, ... args*/) {
+    var baseArgs = array_slice(arguments, 2);
+    return function () {
+        var nodeArgs = baseArgs.concat(array_slice(arguments));
+        var deferred = defer();
+        nodeArgs.push(deferred.makeNodeResolver());
+
+        function bound() {
+            return callback.apply(thisArg, arguments);
+        }
+
+        fapply(bound, nodeArgs).fail(deferred.reject);
+        return deferred.promise;
+    };
+}
+
+/**
+ * Calls a method of a Node-style object that accepts a Node-style
+ * callback with a given array of arguments, plus a provided callback.
+ * @param object an object that has the named method
+ * @param {String} name name of the method of object
+ * @param {Array} args arguments to pass to the method; the callback
+ * will be provided by Q and appended to these arguments.
+ * @returns a promise for the value or error
+ */
+Q.npost = npost;
+Q.nmapply = npost; // synonyms
+function npost(object, name, args) {
+    var nodeArgs = array_slice(args || []);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+
+    post(object, name, nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+}
+
+/**
+ * Calls a method of a Node-style object that accepts a Node-style
+ * callback, forwarding the given variadic arguments, plus a provided
+ * callback argument.
+ * @param object an object that has the named method
+ * @param {String} name name of the method of object
+ * @param ...args arguments to pass to the method; the callback will
+ * be provided by Q and appended to these arguments.
+ * @returns a promise for the value or error
+ */
+Q.nsend = nsend;
+Q.ninvoke = Q.nsend; // synonyms
+Q.nmcall = Q.nsend; // synonyms
+function nsend(object, name /*, ...args*/) {
+    var nodeArgs = array_slice(arguments, 2);
+    var deferred = defer();
+    nodeArgs.push(deferred.makeNodeResolver());
+    post(object, name, nodeArgs).fail(deferred.reject);
+    return deferred.promise;
+}
+
+Q.nodeify = nodeify;
+function nodeify(promise, nodeback) {
+    if (nodeback) {
+        promise.then(function (value) {
+            nextTick(function () {
+                nodeback(null, value);
+            });
+        }, function (error) {
+            nextTick(function () {
+                nodeback(error);
+            });
+        });
+    } else {
+        return promise;
+    }
+}
+
+// All code before this point will be filtered from stack traces.
+var qEndingLine = captureLine();
+
+return Q;
+
+});
+
+})(require("__browserify_process"))
+},{"__browserify_process":3}],20:[function(require,module,exports){
 (function(process){/*global setImmediate: false, setTimeout: false, console: false */
 (function () {
 
@@ -6860,7 +11143,1788 @@ module.exports = function extend() {
 }());
 
 })(require("__browserify_process"))
-},{"__browserify_process":1}],5:[function(require,module,exports){
+},{"__browserify_process":3}],21:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+/*
+  Quarry.io - Find
+  ----------------
+
+  A sync version of the selector resolver for use with already loaded containers
+
+  This is used for container.find() to return the results right away jQuery style
+
+
+
+
+ */
+
+module.exports = factory;
+
+function State(arr){
+  this.count = arr.length;
+  this.index = 0;
+  this.finished = false;
+}
+
+State.prototype.next = function(){
+  this.index++;
+  if(this.index>=this.count){
+    this.finished = true;
+  }
+}
+
+/*
+
+  search is the function that accepts a single container and the single selector to resolve
+  
+*/
+function factory(searchfn){
+
+  /*
+  
+    context is the container to search from
+
+    selectors is the top level array container indivudally processed selector strings
+    
+  */
+
+  return function(selectors, context){
+
+    var final_state = new State(selectors);
+    var final_results = context.spawn();
+
+    /*
+    
+      loop over each of the seperate selector strings
+
+      container("selectorA", "selectorB")
+
+      B -> A
+      
+    */
+    selectors.reverse().forEach(function(stage){
+
+      final_state.next();
+
+      /*
+      
+        this is a merge of the phase results
+
+        the last iteration of this becomes the final results
+        
+      */
+      var stage_results = context.spawn();
+
+      /*
+      
+        now we have the phases - these can be done in parallel
+        
+      */
+      stage.phases.forEach(function(phase){
+
+        
+        var phase_context = context;
+
+        var selector_state = new State(phase);
+
+        phase.forEach(function(selector){
+
+          selector_state.next();
+
+          var results = searchfn(selector, phase_context);
+
+          /*
+          
+            quit the stage loop with no results
+            
+          */
+          if(results.count()<=0){
+            return false;
+          }
+
+          /*
+          
+            if there is still more to get for this string
+            then we update the pipe skeleton
+            
+          */
+          if(!selector_state.finished){
+            phase_context = results;
+          }
+          /*
+          
+            this
+            
+          */
+          else{
+            stage_results.add(results);
+          }
+
+          return true;
+
+        })
+
+      
+
+      })
+
+      /*
+      
+        quit the stages with no results
+        
+      */
+      if(stage_results.count()<=0){
+        return false;
+      }
+
+
+      /*
+      
+        this is the result of a stage - we pipe the results to the next stage
+        or call them the final results
+        
+      */
+
+      if(!final_state.finished){
+        context = stage_results;
+      }
+      else{
+        final_results = stage_results;
+      }
+    })
+
+    return final_results;
+
+  }
+}
+},{}],12:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+
+/**
+ * Module dependencies.
+ */
+
+var util = require('util');
+var Message = require('./message');
+var url = require('url');
+var _ = require('lodash');
+
+/*
+
+
+  
+*/
+
+module.exports = Request;
+
+var url_fields = [
+  'protocol',
+  'hostname',
+  'port',
+  'pathname',
+  'hash'
+]
+
+var default_fields = {
+  'protocol':'http:',
+  'hostname':'localhost',
+  'port':null,
+  'pathname':'/',
+  'hash':null
+}
+
+function Request(data){
+  var self = this;
+  data = data || {};
+  Message.apply(this, [data]);
+
+  this.url = data.url || '/';
+  this.method = data.method || 'get';
+  this.query = data.query || {};
+
+  var parsed = url.parse(this.url);
+
+  if(parsed.query){
+    _.each(parsed.query.split('&'), function(part){
+      var parts = part.split('=');
+      self.query[parts[0]] = parts[1];
+    })
+  }
+
+  _.each(url_fields, function(field){
+    self[field] = parsed[field] || default_fields[field];
+  })
+}
+
+
+Request.factory = function(data){
+  return new Request(data);
+}
+
+
+util.inherits(Request, Message);
+
+Request.prototype.clone = function(){
+  return Request.factory(JSON.parse(JSON.stringify(this.toJSON())));
+}
+
+Request.prototype.debug = function(){
+  this.setHeader('x-digger-debug', true);
+  return this;
+}
+
+Request.prototype.inject = function(child){
+  var self = this;
+  _.each([
+    'x-digger-debug',
+    'x-json-resource',
+    'x-json-meta',
+    'x-json-user',
+    'x-contract-id'
+  ], function(field){
+    var val = self.getHeader(field);
+    if(val){
+      child.setHeader(field, val);  
+    }
+  })
+  return this;
+}
+
+Request.prototype.toJSON = function(){
+  var self = this;
+  var ret = Message.prototype.toJSON.apply(this);
+
+  ret.url = this.url;
+  ret.method = this.method;
+  ret.query = this.query;
+
+  _.each(url_fields, function(field){
+    ret[field] = self[field];
+  })
+
+  return ret;
+}
+
+Request.prototype.expect = function(content_type){
+  this.setHeader('x-expect', content_type);
+  return this;
+}
+},{"./message":13,"lodash":11,"url":6,"util":5}],13:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+
+/**
+ * Module dependencies.
+ */
+
+var _ = require('lodash');
+var util = require('util');
+var EventEmitter = require('events').EventEmitter;
+
+/*
+
+  telegraft - network request
+
+  basic version of http.serverRequest
+  
+*/
+
+module.exports = Message;
+
+function Message(data){
+  data = data || {};
+  EventEmitter.call(this);
+  this.headers = data.headers || {};
+  this.body = data.body || null;
+  this.headerSent = false;
+}
+
+util.inherits(Message, EventEmitter);
+
+Message.prototype.toJSON = function(){
+  return {
+    headers:this.headers,
+    body:this.body
+  }
+}
+
+
+/*
+
+  copied mostly from node.js/lib/http.js
+  
+*/
+Message.prototype.setHeader = function(name, value) {
+  if (arguments.length < 2) {
+    throw new Error('`name` and `value` are required for setHeader().');
+  }
+
+  if (this.headerSent) {
+    throw new Error('Can\'t set headers after they are sent.');
+  }
+
+  var key = name.toLowerCase();
+  this.headers = this.headers || {};
+  this.headers[key] = value;
+  return this;
+}
+
+
+Message.prototype.getHeader = function(name) {
+  if (arguments.length < 1) {
+    throw new Error('`name` is required for getHeader().');
+  }
+
+  if (!this.headers) return;
+
+  var key = name.toLowerCase();
+  var value = this.headers[key];
+
+  if(!value){
+    return value;
+  }
+
+  if(name.indexOf('x-json')===0 && _.isString(value)){
+    value = this.headers[key] = JSON.parse(value);
+  }
+  
+  return value;
+}
+
+
+Message.prototype.removeHeader = function(name) {
+  if (arguments.length < 1) {
+    throw new Error('`name` is required for removeHeader().');
+  }
+
+  if (this.headerSent) {
+    throw new Error('Can\'t remove headers after they are sent.');
+  }
+
+  if (!this.headers) return;
+
+  var key = name.toLowerCase();
+  delete this.headers[key];
+}
+},{"events":4,"lodash":11,"util":5}],18:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+
+var Contract = require('../request/contract').factory;
+var Request = require('../request/request').factory;
+var ParseSelector = require('./selector');
+
+module.exports = {
+  select:select,
+  append:append,
+  save:save,
+  remove:remove
+}
+
+/*
+
+  SELECT 
+  turns an array of selector strings into a pipe contract
+
+  the strings are reversed as in:
+
+    "selector", "context"
+
+  becomes
+
+    context selector
+
+  in the actual search (this is just how jQuery works)
+  
+*/
+function select(){
+
+  /*
+  
+    first get an array of selector objects
+
+    we make a pipe contract out of these
+
+    then duplicate that pipe contract for each different diggerwarehouse
+
+    
+  */
+  var selector_strings = _.toArray(arguments).reverse();
+  var selectors = _.map(selector_strings, function(string){
+    return _.isString(string) ? ParseSelector(string) : string;
+  })
+  
+  /*
+  
+    the 'context' are the models inside 'this' container
+
+    the _digger objects will be sent as the body of the select request
+    for each supplier to use as the context (i.e. starting point for the query)
+
+    
+  */
+  var context = this.containers();
+
+  /*
+  
+    split out the current context into their warehouse origins
+    
+  */
+  var groups = _.groupBy(context, function(container){
+    return container.diggerwarehouse() || '/';
+  })
+
+  var warehouseurls = _.keys(groups);
+
+  /*
+  
+    the top level contract - this will be resolved in the holdingbay
+
+    it is a merge of the various warehouse targets
+    
+  */
+  var contract = Contract('merge');
+  contract.method = 'post';
+  contract.url = 'reception:/';
+
+  contract.body = _.map(warehouseurls, function(warehouseurl){
+
+    /*
+    
+      the contract directed torwards the supplier warehouse
+
+      a PIPE of the selector strings, reversed
+
+      we input the context as the group of containers living in the given warehouse
+
+
+      Filter out any _supplychain objects from the skeleton context
+
+      we are using the warehouseurl as the entry point
+      
+    */
+    var groupedcontainers = _.filter(groups[warehouseurl], function(container){
+      return container.tag()!='_supplychain';
+    })
+
+    var skeleton = _.map(groupedcontainers, function(c){
+      return c.meta();
+    })
+
+    /*
+    
+      the top level that pipes selector strings (in reverse)
+      
+    */
+    var suppliercontract = Request({
+      method:'post',
+      headers:{
+        'x-json-selector-strings':selectors
+      },
+      url:((warehouseurl=='/' ? null : warehouseurl) || '') + '/resolve',
+      body:skeleton || []
+    })    
+
+    return suppliercontract.toJSON();
+  })
+
+  contract.supplychain = this.supplychain;
+  contract.expect('digger/containers');
+  return contract;
+}
+
+/*
+
+  POST
+
+  
+*/
+function append(childarray){
+
+  var self = this;
+  var contract = Contract('merge');
+  contract.method = 'post';
+  contract.url = 'reception:/';
+
+  if(arguments.length<=0){
+    return contract;
+  }
+
+  if(this.count()<=0){
+    return contract;
+  }
+
+  if(!_.isArray(childarray)){
+    childarray = [childarray];
+  }
+  
+  var appendmodels = [];
+  _.each(childarray, function(child){
+    child.supplychain = self.supplychain;
+    appendmodels = appendmodels.concat(child.models);
+  })
+
+  var appendto = this.get(0);
+  var appendcontainer = this.spawn(appendmodels);
+  var appendwarehouse = this.diggerwarehouse();
+
+  appendcontainer.recurse(function(des){
+    des.diggerwarehouse(appendwarehouse);
+  })
+
+  appendto._children = appendto._children.concat(appendmodels);
+
+  var suppliercontract = Request({
+    method:'post',
+    url:this.diggerurl(),
+    body:appendmodels || []
+  })
+
+  contract.on('shipped', function(results){
+    var map = {};
+    _.each(appendmodels, function(model){
+      map[model._digger.diggerid] = model;
+    })
+    _.each(results, function(result){
+      var model = map[result._digger.diggerid];
+      if(model){
+        _.each(result, function(v, k){
+          model[k] = v;
+        })
+      }
+    })
+  })
+
+  contract.body = [suppliercontract.toJSON()];
+  
+  contract.supplychain = this.supplychain;
+  return contract;
+}
+
+/*
+
+  PUT
+  
+*/
+function save(){
+
+  var contract = Contract('merge');
+  contract.method = 'post';
+  contract.url = 'reception:/';
+
+  var url = contract.url;
+  var data = _.clone(this.eq(0).toJSON()[0]);
+
+  delete(data._children);
+  delete(data._data);
+
+  var suppliercontract = Request({
+    method:'put',
+    url:this.diggerurl(),
+    body:data
+  })
+
+  contract.body = [suppliercontract.toJSON()];
+  
+  contract.supplychain = this.supplychain;
+  return contract;
+}
+
+/*
+
+  DELETE
+  
+*/
+function remove(){
+
+  var contract = Contract('merge');
+  contract.method = 'post';
+  contract.url = 'reception:/';
+
+  var suppliercontract = Request({
+    method:'delete',
+    url:this.diggerurl()
+  })    
+
+  contract.body = [suppliercontract.toJSON()];
+
+  contract.supplychain = this.supplychain;
+  return contract;
+}
+},{"../request/contract":8,"../request/request":12,"./selector":22,"lodash":11}],17:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+var XML = require('./xml');
+var utils = require('digger-utils');
+
+/*
+
+  model factory
+
+  turns input data into a container data array
+  
+*/
+
+
+/*
+
+  takes data in as string (XML, JSON) or array of objects or single object
+
+  returns container data
+  
+*/
+function extractdata(data, attr){
+
+  if(_.isString(data)){
+    data = data.replace(/^\s+/, '');
+    // we assume XML
+    if(data.charAt(0)=='<'){
+      data = XML.parse(data);
+    }
+    // or JSON string
+    else if(data.charAt(0)=='['){
+      data = JSON.parse(data);
+    }
+    // we could do YAML here
+    else{
+      attr = attr || {};
+      attr._digger = attr._digger || {};
+      attr._digger.tag = data;
+      attr._children = attr._children || [];
+      attr._data = attr._data || {};
+      data = [attr];
+    }
+  }
+  else if(!_.isArray(data)){
+    if(!data){
+      data = {};
+    }
+    data = [data];
+  }
+
+  return data;
+}
+
+/*
+
+  extract the raw data array and then map it for defaults
+  
+*/
+module.exports = function modelfactory(data, attr){
+
+  if(!data){
+    return [];
+  }
+  
+  var models = extractdata(data, attr);
+
+  function nonulls(model){
+    return model!==null;
+  }
+  /*
+  
+    prepare the data
+    
+  */
+  models = _.filter(_.map(models || [], function(model){
+
+    if(!model){
+      return null;
+    }
+
+    var digger = model._digger = model._digger || {};
+    digger.class = digger.class || [];
+    digger.diggerpath = digger.diggerpath || [];
+    digger.diggerid = digger.diggerid || utils.diggerid();
+
+    model._children = model._children || [];
+
+    return model;
+  }), nonulls)
+
+  return models;
+}
+
+module.exports.toXML = XML.stringify;
+},{"./xml":23,"digger-utils":14,"lodash":11}],16:[function(require,module,exports){
+/*
+
+  (The MIT License)
+
+  Copyright (C) 2005-2013 Kai Davenport
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+var _ = require('lodash');
+var extend = require('xtend');
+var EventEmitter = require('events').EventEmitter;
+
+module.exports = deepdot;
+module.exports.factory = factory;
+
+function update(obj, prop, value){
+  
+  if(_.isArray(value)){
+    obj[prop] = value;
+    return value;
+  }
+  
+  var existing_prop = obj[prop];
+
+  if(_.isObject(obj[prop]) && _.isObject(value)){
+    extend(obj[prop], value);
+  }
+  else{
+    
+    obj[prop] = value;
+    
+  }
+
+  return value;
+}
+
+function deepdot(obj, prop, value){
+
+  if(obj===null){
+    return null;
+  }
+  if(!prop){
+    return obj;
+  }
+  prop = prop.replace(/^\./, '');
+  var parts = prop.split('.');
+  var last = parts.pop();
+  var current = obj;
+  var setmode = arguments.length>=3;
+
+  if(!_.isObject(current)){
+    return current;
+  }
+
+  while(parts.length>0 && current!==null){
+
+    var nextpart = parts.shift();
+    var nextvalue = current[nextpart]; 
+    
+    if(!nextvalue){
+
+      if(setmode){
+        nextvalue = current[nextpart] = {};
+      }
+      else{
+        break;  
+      }
+      
+    }
+    else{
+      if(!_.isObject(nextvalue)){
+        break;
+      }
+    }
+
+    current = nextvalue;
+  }
+
+  if(!_.isObject(current)){
+    return current;
+  }
+
+  if(setmode){
+    return update(current, last, value);
+  }
+  else{
+    return current[last];
+  }
+}
+
+/*
+
+  return an event emitter that is hooked into a single object
+  
+*/
+function factory(obj){
+  
+  function dot(){
+
+    var args = _.toArray(arguments);
+    args.unshift(obj);
+
+    var ret = deepdot.apply(null, args);
+
+    if(arguments.length>1){
+      dot.emit('change', arguments[0], arguments[1]);
+    }
+
+    return ret;
+  }
+
+  _.extend(dot, EventEmitter.prototype);
+
+  return dot;
+}
+},{"events":4,"lodash":11,"xtend":24}],25:[function(require,module,exports){
+var hat = module.exports = function (bits, base) {
+    if (!base) base = 16;
+    if (bits === undefined) bits = 128;
+    if (bits <= 0) return '0';
+    
+    var digits = Math.log(Math.pow(2, bits)) / Math.log(base);
+    for (var i = 2; digits === Infinity; i *= 2) {
+        digits = Math.log(Math.pow(2, bits / i)) / Math.log(base) * i;
+    }
+    
+    var rem = digits - Math.floor(digits);
+    
+    var res = '';
+    
+    for (var i = 0; i < Math.floor(digits); i++) {
+        var x = Math.floor(Math.random() * base).toString(base);
+        res = x + res;
+    }
+    
+    if (rem) {
+        var b = Math.pow(base, rem);
+        var x = Math.floor(Math.random() * b).toString(base);
+        res = x + res;
+    }
+    
+    var parsed = parseInt(res, base);
+    if (parsed !== Infinity && parsed >= Math.pow(2, bits)) {
+        return hat(bits, base)
+    }
+    else return res;
+};
+
+hat.rack = function (bits, base, expandBy) {
+    var fn = function (data) {
+        var iters = 0;
+        do {
+            if (iters ++ > 10) {
+                if (expandBy) bits += expandBy;
+                else throw new Error('too many ID collisions, use more bits')
+            }
+            
+            var id = hat(bits, base);
+        } while (Object.hasOwnProperty.call(hats, id));
+        
+        hats[id] = data;
+        return id;
+    };
+    var hats = fn.hats = {};
+    
+    fn.get = function (id) {
+        return fn.hats[id];
+    };
+    
+    fn.set = function (id, value) {
+        fn.hats[id] = value;
+        return fn;
+    };
+    
+    fn.bits = bits || 128;
+    fn.base = base || 16;
+    return fn;
+};
+
+},{}],26:[function(require,module,exports){
+var hasOwn = Object.prototype.hasOwnProperty;
+
+function isPlainObject(obj) {
+	if (!obj || toString.call(obj) !== '[object Object]' || obj.nodeType || obj.setInterval)
+		return false;
+
+	var has_own_constructor = hasOwnProperty.call(obj, 'constructor');
+	var has_is_property_of_method = hasOwnProperty.call(obj.constructor.prototype, 'isPrototypeOf');
+	// Not own constructor property must be Object
+	if (obj.constructor && !has_own_constructor && !has_is_property_of_method)
+		return false;
+
+	// Own properties are enumerated firstly, so to speed up,
+	// if last one is own, then all properties are own.
+	var key;
+	for ( key in obj ) {}
+
+	return key === undefined || hasOwn.call( obj, key );
+};
+
+module.exports = function extend() {
+	var options, name, src, copy, copyIsArray, clone,
+	    target = arguments[0] || {},
+	    i = 1,
+	    length = arguments.length,
+	    deep = false;
+
+	// Handle a deep copy situation
+	if ( typeof target === "boolean" ) {
+		deep = target;
+		target = arguments[1] || {};
+		// skip the boolean and the target
+		i = 2;
+	}
+
+	// Handle case when target is a string or something (possible in deep copy)
+	if ( typeof target !== "object" && typeof target !== "function") {
+		target = {};
+	}
+
+	for ( ; i < length; i++ ) {
+		// Only deal with non-null/undefined values
+		if ( (options = arguments[ i ]) != null ) {
+			// Extend the base object
+			for ( name in options ) {
+				src = target[ name ];
+				copy = options[ name ];
+
+				// Prevent never-ending loop
+				if ( target === copy ) {
+					continue;
+				}
+
+				// Recurse if we're merging plain objects or arrays
+				if ( deep && copy && ( isPlainObject(copy) || (copyIsArray = Array.isArray(copy)) ) ) {
+					if ( copyIsArray ) {
+						copyIsArray = false;
+						clone = src && Array.isArray(src) ? src : [];
+
+					} else {
+						clone = src && isPlainObject(src) ? src : {};
+					}
+
+					// Never move original objects, clone them
+					target[ name ] = extend( deep, clone, copy );
+
+				// Don't bring in undefined values
+				} else if ( copy !== undefined ) {
+					target[ name ] = copy;
+				}
+			}
+		}
+	}
+
+	// Return the modified object
+	return target;
+};
+
+},{}],19:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+var find = require('./find');
+var search = require('./search');
+var inspectselect = require('../selector');
+
+var finder = find(search.searcher);
+
+var sortfns = {
+  title:function(a, b){
+    if ( a.title().toLowerCase() < b.title().toLowerCase() )
+      return -1;
+    if ( a.title().toLowerCase() > b.title().toLowerCase() )
+      return 1;
+    return 0;
+  },
+  field:function(name){
+    return function(a, b){
+      if ( a.attr(name).toLowerCase() < b.attr(name).toLowerCase() )
+        return -1;
+      if ( a.attr(name).toLowerCase() > b.attr(name).toLowerCase() )
+        return 1;
+      return 0;
+    }
+  }
+}
+
+module.exports = {
+  find:function(){
+    var selectors = _.map(_.toArray(arguments), function(arg){
+      return _.isString(arg) ? inspectselect(arg) : arg;
+    })
+    return finder(selectors, this);
+  },
+
+  sort:function(fn){
+    if(_.isString(fn)){
+      fn = sortfns.field(fn);
+    }
+    else if(!fn){
+      fn = sortfns.title;
+    }
+
+    this.each(function(container){
+      var newchildren = container.children().containers().sort(fn);
+      var model = container.get(0);
+      model.children = _.map(newchildren, function(container){
+        return container.get(0);
+      })
+    })
+
+    return this;
+  },
+
+  filter:function(filterfn){
+
+    /*
+    
+      turn anything other than a function into the filter function
+
+      the compiler looks after turning strings into selector objects
+      
+    */
+    if(!_.isFunction(filterfn)){
+      filterfn = search.compiler(filterfn);
+    }
+
+    var matching_container_array = _.filter(this.containers(), filterfn);
+
+    return this.spawn(_.map(matching_container_array, function(container){
+      return container.get(0);
+    }))
+  },
+
+  match:function(selector){
+
+    if(this.count()<=0){
+      return false;
+    }
+
+    var results = this.filter(selector);
+
+    return results.count()>0;
+  }
+}
+},{"../selector":22,"./find":21,"./search":27,"lodash":11}],14:[function(require,module,exports){
+(function(){/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+var _ = require('lodash');
+var url = require('url');
+var extend = require('extend');
+var hat = require('hat');
+
+var utils = module.exports = {};
+
+/**
+ * generate a new global id
+ */
+
+utils.diggerid = function(){
+  return hat();
+}
+
+utils.littleid = function(){
+
+  var pattern = 'xxxxxx';
+  
+  return pattern.replace(/[xy]/g, function(c) {
+    var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * takes a string and prepares it to be used in a RegExp itself
+ */
+
+utils.escapeRegexp = function(search){
+  return search.replace(/([\!\$\(\)\*\+\.\/\:\=\?\[\\\]\^\{\|\}])/g, "\\$1");
+}
+
+/**
+ * Escape the given string of `html`.
+ *
+ * @param {String} html
+ * @return {String}
+ * @api private
+ */
+
+utils.escape = function(html){
+  return String(html)
+    .replace(/&(?!\w+;)/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+
+/**
+ * Parse the `req` url with memoization.
+ *
+ * @param {ServerRequest} req
+ * @return {Object}
+ * @api private
+ */
+
+utils.parseUrl = function(req){
+  var parsed = req._parsedUrl;
+  if (parsed && parsed.href == req.url) {
+    return parsed;
+  } else {
+    return req._parsedUrl = url.parse(req.url);
+  }
+};
+
+/*
+
+  make a route - optionally replace the '/'s with delimeter
+  
+*/
+utils.makeroute = function(parts, delimeter){
+
+  var route = _.filter(parts || [], function(part){
+    return _.isNumber(part) || !_.isEmpty(part);
+  }).join('/');
+
+  if(delimeter){
+    route = route.replace(/\//g, delimeter);
+    if(route.indexOf(delimeter)===0){
+      route = route.substr(1);
+    }
+  }
+
+  return route.replace(/\/\//g, '/');
+}
+
+
+
+/**
+ * jQuery Deep extend
+ */
+
+utils.extend = extend;
+})()
+},{"extend":26,"hat":25,"lodash":11,"url":6}],23:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+var xml = require('xmldom');
+
+module.exports.parse = fromXML;
+module.exports.stringify = toXML;
+
+/*
+  digger.io - XML Format
+  ----------------------
+
+  Turns XML strings into container data and back again
+
+
+ */
+function null_filter(val){
+  return !_.isUndefined(val) && !_.isNull(val);
+}
+
+function data_factory(element){
+
+  if(element.nodeType!=element.ELEMENT_NODE){
+    return;
+  }
+
+  var metafields = {
+    id:true,
+    diggerid:true
+  }
+  
+  var manualfields = {
+    tag:true,
+    class:true
+  }
+
+  var data = {
+    _digger:{
+      tag:element.nodeName,
+      class:_.filter((element.getAttribute('class') || '').split(/\s+/), function(classname){
+        return classname.match(/\w/);
+      })
+    },
+    _children:[]
+  }
+  
+  _.each(metafields, function(v, metafield){
+    data._digger[metafield] = element.getAttribute(metafield) || '';
+  })
+
+  _.each(element.attributes, function(attr){
+    if(!metafields[attr.name] && !manualfields[attr.name]){
+      data[attr.name] = attr.value;
+    }
+  })
+
+  data._children = _.filter(_.map(element.childNodes, data_factory), null_filter);
+
+  return data;
+}
+
+/*
+
+  includes xmldom
+  
+*/
+function XMLParser(st){
+
+  /*
+  
+    server side XML parsing
+    
+  */
+  
+  var DOMParser = xml.DOMParser;
+  var doc = new DOMParser().parseFromString(st);
+  var results = _.map(doc.childNodes, data_factory);
+  
+  return results;
+}
+
+function fromXML(string){
+
+  return XMLParser(string);
+
+}
+
+
+function string_factory(data, depth){
+
+  var meta = data._digger || {};
+  var children = data._children || [];
+  var attr = data;
+
+  function get_indent_string(){
+    var st = "\t";
+    var ret = '';
+    for(var i=0; i<depth; i++){
+      ret += st;
+    }
+    return ret;
+  }
+
+  var pairs = {
+    id:meta.id,
+    class:_.isArray(meta.class) ? meta.class.join(' ') : ''
+  }
+
+  var pair_strings = [];
+
+  _.each(attr, function(val, key){
+    if(key=='_digger'){
+      return;
+    }
+    pairs[key] = _.isString(val) ? val : '' + val;
+  })
+
+  _.each(pairs, function(value, field){
+    if(!_.isEmpty(value)){
+      pair_strings.push(field + '="' + value + '"');  
+    }
+  })
+
+  if(children && children.length>0){
+    var ret = get_indent_string() + '<' + meta.tag + ' ' + pair_strings.join(' ') + '>' + "\n";
+
+    _.each(children, function(child){      
+      ret += string_factory(child, depth+1);
+    })
+
+    ret += get_indent_string() + '</' + meta.tag + '>' + "\n";
+
+    return ret;    
+  }
+  else{
+    return get_indent_string() + '<' + meta.tag + ' ' + pair_strings.join(' ') + ' />' + "\n";
+  }
+}
+
+/*
+  This is the sync version of a warehouse search used by in-memory container 'find' commands
+
+  The packet will be either a straight select or a contract
+ */
+function toXML(data_array){
+  return _.map(data_array, function(data){
+    return string_factory(data, 0);
+  }).join("\n");
+}
+},{"lodash":11,"xmldom":28}],22:[function(require,module,exports){
+/*
+
+  (The MIT License)
+
+  Copyright (C) 2005-2013 Kai Davenport
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+
+module.exports = parse;
+module.exports.mini = miniparse;
+
+/*
+  Quarry.io Selector
+  -------------------
+
+  Represents a CSS selector that will be passed off to selectors or perform in-memory search
+
+ */
+
+/***********************************************************************************
+ ***********************************************************************************
+  Here is the  data structure:
+
+  "selector": " > * product.onsale[price<100] > img caption.red, friend",
+  "phases":
+    [
+      [
+          {
+              "splitter": ">",
+              "tag": "*"
+          },
+          {
+              "splitter": "",
+              "tag": "product",
+              "classnames": {
+                  "onsale": true
+              },
+              "attr": [
+                  {
+                      "field": "price",
+                      "operator": "<",
+                      "value": "100"
+                  }
+              ]
+          },
+          {
+              "splitter": ">",
+              "tag": "img"
+          },
+          {
+              "splitter": "",
+              "tag": "caption",
+              "classnames": {
+                  "red": true
+              }
+          }
+      ],
+      [
+          {
+              "tag": "friend"
+          }
+      ]
+    ]
+
+ */
+
+/*
+  Regular Expressions for each chunk
+*/
+
+var chunkers = [
+  // the 'type' selector
+  {
+    name:'tag',
+    regexp:/^(\*|\w+)/,
+    mapper:function(val, map){
+      map.tag = val;
+    }
+  },
+  // the '.classname' selector
+  {
+    name:'class',
+    regexp:/^\.\w+/,
+    mapper:function(val, map){
+      map.class = map.class || {};
+      map.class[val.replace(/^\./, '')] = true;
+    }
+  },
+  // the '#id' selector
+  {
+    name:'id',
+    regexp:/^#\w+/,
+    mapper:function(val, map){
+      map.id = val.replace(/^#/, '');
+    }
+  },
+  // the '=quarryid' selector
+  {
+    name:'diggerid',
+    regexp:/^=[\w-]+/,
+    mapper:function(val, map){
+      map.diggerid = val.replace(/^=/, '');
+    }
+  },
+  // the ':modifier' selector
+  {
+    name:'modifier',
+    regexp:/^:\w+(\(.*?\))?/,
+    mapper:function(val, map){
+      map.modifier = map.modifier || {};
+      var parts = val.split('(');
+      var key = parts[0];
+      val = parts[1];
+
+      if(val){
+        val = val.replace(/\)$/, '');
+
+        if(val.match(/^[\d\.-]+$/)){
+          val = JSON.parse(val);
+        }
+
+      }
+      else{
+        val = true;
+      }
+
+      map.modifier[key.replace(/^:/, '')] = val;
+    }
+  },
+  // the '[attr<100]' selector
+  {
+    name:'attr',
+    regexp:/^\[.*?["']?.*?["']?\]/,
+    mapper:function(val, map){
+      map.attr = map.attr || [];
+      var match = val.match(/\[(.*?)([=><\^\|\*\~\$\!]+)["']?(.*?)["']?\]/);
+      if(match){
+        map.attr.push({
+          field:match[1],
+          operator:match[2],
+          value:match[3]
+        });
+      }
+      else {
+        map.attr.push({
+          field:attrString.replace(/^\[/, '').replace(/\]$/, '')
+        });
+      }
+    }
+  },
+  // the ' ' or ' > ' splitter
+  {
+    name:'splitter',
+    regexp:/^[ ,<>]+/,
+    mapper:function(val, map){
+      map.splitter = val.replace(/\s+/g, '');
+    }
+
+  }
+];
+
+
+/*
+  Parse selector string into flat array of chunks
+ 
+  Example in: product.onsale[price<100]
+ */
+function parseChunks(selector){
+
+  var lastMatch = null;
+  var workingString = selector ? selector : '';
+  var lastString = '';
+
+  // this is a flat array of type, string pairs
+  var chunks = [];
+
+  var matchNextChunk = function(){
+
+    lastMatch = null;
+
+    for(var i in chunkers){
+      var chunker = chunkers[i];
+
+      if(lastMatch = workingString.match(chunker.regexp)){
+
+        // merge the value into the chunker data
+        chunks.push(_.extend({
+          value:lastMatch[0]
+        }, chunker));
+
+        workingString = workingString.replace(lastMatch[0], '');
+
+        return true;
+      }
+    }
+    
+    return false;
+
+  }
+  
+  // the main chunking loop happens here
+  while(matchNextChunk()){
+    
+    // this is the sanity check in case we match nothing
+    if(lastString==workingString){
+      break;
+    }
+  }
+
+  return chunks;
+}
+
+function new_selector(){
+  return {
+    classnames:{},
+    attr:[],
+    modifier:{}
+  }
+}
+
+/*
+
+  turns a selector string into an array of arrays (phases) of selector objects
+ 
+ */
+function parse(selector_string){
+
+  if(!_.isString(selector_string)){
+    return selector_string;
+  }
+
+  var chunks = parseChunks(selector_string);
+
+  var phases = [];
+  var currentPhase = [];
+  var currentSelector = new_selector();
+
+  var addCurrentPhase = function(){
+    if(currentPhase.length>0){
+      phases.push(currentPhase);
+    }
+    currentPhase = [];
+  }
+
+  var addCurrentSelector = function(){
+    if((_.keys(currentSelector)).length>0){
+      currentPhase.push(currentSelector);
+    }
+    currentSelector = new_selector();
+  }
+
+  var addChunkToSelector = function(chunk, selector){
+    chunk.mapper.apply(null, [chunk.value, selector]);
+  }
+
+  _.each(chunks, function(chunk, index){
+    if(chunk.name=='splitter' && chunk.value.match(/,/)){
+      addCurrentSelector();
+      addCurrentPhase();
+    }
+    else{
+
+      if(chunk.name=='splitter' && index>0){
+        addCurrentSelector();
+      }
+
+      addChunkToSelector(chunk, currentSelector);
+
+    }
+  })
+
+  addCurrentSelector();
+  addCurrentPhase();
+
+  return {
+    string:selector_string,
+    phases:phases
+  }
+}
+
+function miniparse(selector_string){
+
+  if(!_.isString(selector_string)){
+    return selector_string;
+  }
+  selector_string = selector_string || '';
+  var selector = {
+    class:{},
+    modifier:{}
+  }
+  selector_string = selector_string.replace(/_(\w+)/, function(match, id){
+    selector.id = id;
+    return '';
+  })
+  selector_string = selector_string.replace(/\.(\w+)/g, function(match, classname){
+    selector.class[classname] = true;
+    return '';
+  })
+  if(selector_string.match(/\d/)){
+    selector.diggerid = selector_string;
+  }
+  else{
+    selector.tag = selector_string;
+  }
+  return selector;
+}
+},{"lodash":11}],29:[function(require,module,exports){
+module.exports = hasKeys
+
+function hasKeys(source) {
+    return source !== null &&
+        (typeof source === "object" ||
+        typeof source === "function")
+}
+
+},{}],24:[function(require,module,exports){
+var Keys = require("object-keys")
+var hasKeys = require("./has-keys")
+
+module.exports = extend
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        if (!hasKeys(source)) {
+            continue
+        }
+
+        var keys = Keys(source)
+
+        for (var j = 0; j < keys.length; j++) {
+            var name = keys[j]
+            target[name] = source[name]
+        }
+    }
+
+    return target
+}
+
+},{"./has-keys":29,"object-keys":30}],28:[function(require,module,exports){
 function DOMParser(options){
 	this.options = 
 			options != true && //To the version (0.1.12) compatible
@@ -7115,573 +13179,7 @@ if(typeof require == 'function'){
 	exports.DOMParser = DOMParser;
 }
 
-},{"./dom":10,"./sax":9}],9:[function(require,module,exports){
-//[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
-//[4a]   	NameChar	   ::=   	NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
-//[5]   	Name	   ::=   	NameStartChar (NameChar)*
-var nameStartChar = /[A-Z_a-z\xC0-\xD6\xD8-\xF6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]///\u10000-\uEFFFF
-var nameChar = new RegExp("[\\-\\.0-9"+nameStartChar.source.slice(1,-1)+"\u00B7\u0300-\u036F\\ux203F-\u2040]");
-var tagNamePattern = new RegExp('^'+nameStartChar.source+nameChar.source+'*(?:\:'+nameStartChar.source+nameChar.source+'*)?$');
-//var tagNamePattern = /^[a-zA-Z_][\w\-\.]*(?:\:[a-zA-Z_][\w\-\.]*)?$/
-//var handlers = 'resolveEntity,getExternalSubset,characters,endDocument,endElement,endPrefixMapping,ignorableWhitespace,processingInstruction,setDocumentLocator,skippedEntity,startDocument,startElement,startPrefixMapping,notationDecl,unparsedEntityDecl,error,fatalError,warning,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,comment,endCDATA,endDTD,endEntity,startCDATA,startDTD,startEntity'.split(',')
-
-//S_TAG,	S_ATTR,	S_EQ,	S_V
-//S_ATTR_S,	S_E,	S_S,	S_C
-var S_TAG = 0;//tag name offerring
-var S_ATTR = 1;//attr name offerring 
-var S_ATTR_S=2;//attr name end and space offer
-var S_EQ = 3;//=space?
-var S_V = 4;//attr value(no quot value only)
-var S_E = 5;//attr value end and no space(quot end)
-var S_S = 6;//(attr value end || tag end ) && (space offer)
-var S_C = 7;//closed el<el />
-
-function XMLReader(){
-}
-
-XMLReader.prototype = {
-	parse:function(source,defaultNSMap,entityMap){
-		var domBuilder = this.domBuilder;
-		domBuilder.startDocument();
-		_copy(defaultNSMap ,defaultNSMap = {})
-		parse(source,defaultNSMap,entityMap,
-				domBuilder,this.errorHandler);
-		domBuilder.endDocument();
-	}
-}
-function parse(source,defaultNSMapCopy,entityMap,domBuilder,errorHandler){
-  function fixedFromCharCode(code) {
-		// String.prototype.fromCharCode does not supports
-		// > 2 bytes unicode chars directly
-		if (code > 0xffff) {
-			code -= 0x10000;
-			var surrogate1 = 0xd800 + (code >> 10)
-				, surrogate2 = 0xdc00 + (code & 0x3ff);
-
-			return String.fromCharCode(surrogate1, surrogate2);
-		} else {
-			return String.fromCharCode(code);
-		}
-	}
-	function entityReplacer(a){
-		var k = a.slice(1,-1);
-		if(k in entityMap){
-			return entityMap[k]; 
-		}else if(k.charAt(0) === '#'){
-			return fixedFromCharCode(parseInt(k.substr(1).replace('x','0x')))
-		}else{
-			errorHandler.error('entity not found:'+a);
-			return a;
-		}
-	}
-	function appendText(end){//has some bugs
-		var xt = source.substring(start,end).replace(/&#?\w+;/g,entityReplacer);
-		locator&&position(start);
-		domBuilder.characters(xt,0,end-start);
-		start = end
-	}
-	function position(start,m){
-		while(start>=endPos && (m = linePattern.exec(source))){
-			startPos = m.index;
-			endPos = startPos + m[0].length;
-			locator.lineNumber++;
-			//console.log('line++:',locator,startPos,endPos)
-		}
-		locator.columnNumber = start-startPos+1;
-	}
-	var startPos = 0;
-	var endPos = 0;
-	var linePattern = /.+(?:\r\n?|\n)|.*$/g
-	var locator = domBuilder.locator;
-	
-	var parseStack = [{currentNSMap:defaultNSMapCopy}]
-	var closeMap = {};
-	var start = 0;
-	while(true){
-		var i = source.indexOf('<',start);
-		if(i>start){
-			appendText(i);
-		}
-		switch(source.charAt(i+1)){
-		case '/':
-			var end = source.indexOf('>',i+3);
-			var tagName = source.substring(i+2,end);
-			var config = parseStack.pop();
-			var localNSMap = config.localNSMap;
-			
-	        if(config.tagName != tagName){
-	            errorHandler.fatalError("end tag name: "+tagName+' is not match the current start tagName:'+config.tagName );
-	        }
-			domBuilder.endElement(config.uri,config.localName,tagName);
-			if(localNSMap){
-				for(var prefix in localNSMap){
-					domBuilder.endPrefixMapping(prefix) ;
-				}
-			}
-			end++;
-			break;
-			// end elment
-		case '?':// <?...?>
-			locator&&position(i);
-			end = parseInstruction(source,i,domBuilder);
-			break;
-		case '!':// <!doctype,<![CDATA,<!--
-			locator&&position(i);
-			end = parseDCC(source,i,domBuilder);
-			break;
-		default:
-			if(i<0){
-				if(!source.substr(start).match(/^\s*$/)){
-					errorHandler.error('source code out of document root');
-				}
-				return;
-			}else{
-				try{
-					locator&&position(i);
-					var el = new ElementAttributes();
-					//elStartEnd
-					var end = parseElementStartPart(source,i,el,entityReplacer,errorHandler);
-					var len = el.length;
-					//position fixed
-					if(len && locator){
-						var backup = copyLocator(locator,{});
-						for(var i = 0;i<len;i++){
-							var a = el[i];
-							position(a.offset);
-							a.offset = copyLocator(locator,{});
-						}
-						copyLocator(backup,locator);
-					}
-					el.closed = el.closed||fixSelfClosed(source,end,el.tagName,closeMap);
-					appendElement(el,domBuilder,parseStack);
-					
-					
-					if(el.uri === 'http://www.w3.org/1999/xhtml' && !el.closed){
-						end = parseHtmlSpecialContent(source,end,el.tagName,entityReplacer,domBuilder)
-					}else{
-						end++;
-					}
-				}catch(e){
-					errorHandler.error('element parse error: '+e);
-					end = -1;
-				}
-			}
-
-		}
-		if(end<0){
-			//TODO: 这里有可能sax回退，有位置错误风险
-			appendText(i+1);
-		}else{
-			start = end;
-		}
-	}
-}
-function copyLocator(f,t){
-	t.lineNumber = f.lineNumber;
-	t.columnNumber = f.columnNumber;
-	return t;
-	
-}
-
-/**
- * @see #appendElement(source,elStartEnd,el,selfClosed,entityReplacer,domBuilder,parseStack);
- * @return end of the elementStartPart(end of elementEndPart for selfClosed el)
- */
-function parseElementStartPart(source,start,el,entityReplacer,errorHandler){
-	var attrName;
-	var value;
-	var p = ++start;
-	var s = S_TAG;//status
-	while(true){
-		var c = source.charAt(p);
-		switch(c){
-		case '=':
-			if(s === S_ATTR){//attrName
-				attrName = source.slice(start,p);
-				s = S_EQ;
-			}else if(s === S_ATTR_S){
-				s = S_EQ;
-			}else{
-				//fatalError: equal must after attrName or space after attrName
-				throw new Error('attribute equal must after attrName');
-			}
-			break;
-		case '\'':
-		case '"':
-			if(s === S_EQ){//equal
-				start = p+1;
-				p = source.indexOf(c,start)
-				if(p>0){
-					value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
-					el.add(attrName,value,start-1);
-					s = S_E;
-				}else{
-					//fatalError: no end quot match
-					throw new Error('attribute value no end \''+c+'\' match');
-				}
-			}else if(s == S_V){
-				value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
-				//console.log(attrName,value,start,p)
-				el.add(attrName,value,start);
-				//console.dir(el)
-				errorHandler.warning('attribute "'+attrName+'" missed start quot('+c+')!!');
-				start = p+1;
-				s = S_E
-			}else{
-				//fatalError: no equal before
-				throw new Error('attribute value must after "="');
-			}
-			break;
-		case '/':
-			switch(s){
-			case S_TAG:
-				el.setTagName(source.slice(start,p));
-			case S_E:
-			case S_S:
-			case S_C:
-				s = S_C;
-				el.closed = true;
-			case S_V:
-			case S_ATTR:
-			case S_ATTR_S:
-				break;
-			//case S_EQ:
-			default:
-				throw new Error("attribute invalid close char('/')")
-			}
-			break;
-		case '>':
-			switch(s){
-			case S_TAG:
-				el.setTagName(source.slice(start,p));
-			case S_E:
-			case S_S:
-			case S_C:
-				break;//normal
-			case S_V://Compatible state
-			case S_ATTR:
-				value = source.slice(start,p);
-				if(value.slice(-1) === '/'){
-					el.closed  = true;
-					value = value.slice(0,-1)
-				}
-			case S_ATTR_S:
-				if(s === S_ATTR_S){
-					value = attrName;
-				}
-				if(s == S_V){
-					errorHandler.warning('attribute "'+value+'" missed quot(")!!');
-					el.add(attrName,value.replace(/&#?\w+;/g,entityReplacer),start)
-				}else{
-					errorHandler.warning('attribute "'+value+'" missed value!! "'+value+'" instead!!')
-					el.add(value,value,start)
-				}
-				break;
-			case S_EQ:
-				throw new Error('attribute value missed!!');
-			}
-//			console.log(tagName,tagNamePattern,tagNamePattern.test(tagName))
-			return p;
-		/*xml space '\x20' | #x9 | #xD | #xA; */
-		case '\u0080':
-			c = ' ';
-		default:
-			if(c<= ' '){//space
-				switch(s){
-				case S_TAG:
-					el.setTagName(source.slice(start,p));//tagName
-					s = S_S;
-					break;
-				case S_ATTR:
-					attrName = source.slice(start,p)
-					s = S_ATTR_S;
-					break;
-				case S_V:
-					var value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
-					errorHandler.warning('attribute "'+value+'" missed quot(")!!');
-					el.add(attrName,value,start)
-				case S_E:
-					s = S_S;
-					break;
-				//case S_S:
-				//case S_EQ:
-				//case S_ATTR_S:
-				//	void();break;
-				//case S_C:
-					//ignore warning
-				}
-			}else{//not space
-//S_TAG,	S_ATTR,	S_EQ,	S_V
-//S_ATTR_S,	S_E,	S_S,	S_C
-				switch(s){
-				//case S_TAG:void();break;
-				//case S_ATTR:void();break;
-				//case S_V:void();break;
-				case S_ATTR_S:
-					errorHandler.warning('attribute "'+attrName+'" missed value!! "'+attrName+'" instead!!')
-					el.add(attrName,attrName,start);
-					start = p;
-					s = S_ATTR;
-					break;
-				case S_E:
-					errorHandler.warning('attribute space is required"'+attrName+'"!!')
-				case S_S:
-					s = S_ATTR;
-					start = p;
-					break;
-				case S_EQ:
-					s = S_V;
-					start = p;
-					break;
-				case S_C:
-					throw new Error("elements closed character '/' and '>' must be connected to");
-				}
-			}
-		}
-		p++;
-	}
-}
-/**
- * @return end of the elementStartPart(end of elementEndPart for selfClosed el)
- */
-function appendElement(el,domBuilder,parseStack){
-	var tagName = el.tagName;
-	var localNSMap = null;
-	var currentNSMap = parseStack[parseStack.length-1].currentNSMap;
-	var i = el.length;
-	while(i--){
-		var a = el[i];
-		var qName = a.qName;
-		var value = a.value;
-		var nsp = qName.indexOf(':');
-		if(nsp>0){
-			var prefix = a.prefix = qName.slice(0,nsp);
-			var localName = qName.slice(nsp+1);
-			var nsPrefix = prefix === 'xmlns' && localName
-		}else{
-			localName = qName;
-			prefix = null
-			nsPrefix = qName === 'xmlns' && ''
-		}
-		//can not set prefix,because prefix !== ''
-		a.localName = localName ;
-		//prefix == null for no ns prefix attribute 
-		if(nsPrefix !== false){//hack!!
-			if(localNSMap == null){
-				localNSMap = {}
-				_copy(currentNSMap,currentNSMap={})
-			}
-			currentNSMap[nsPrefix] = localNSMap[nsPrefix] = value;
-			a.uri = 'http://www.w3.org/2000/xmlns/'
-			domBuilder.startPrefixMapping(nsPrefix, value) 
-		}
-	}
-	var i = el.length;
-	while(i--){
-		a = el[i];
-		var prefix = a.prefix;
-		if(prefix){//no prefix attribute has no namespace
-			if(prefix === 'xml'){
-				a.uri = 'http://www.w3.org/XML/1998/namespace';
-			}if(prefix !== 'xmlns'){
-				a.uri = currentNSMap[prefix]
-			}
-		}
-	}
-	var nsp = tagName.indexOf(':');
-	if(nsp>0){
-		prefix = el.prefix = tagName.slice(0,nsp);
-		localName = el.localName = tagName.slice(nsp+1);
-	}else{
-		prefix = null;//important!!
-		localName = el.localName = tagName;
-	}
-	//no prefix element has default namespace
-	var ns = el.uri = currentNSMap[prefix || ''];
-	domBuilder.startElement(ns,localName,tagName,el);
-	//endPrefixMapping and startPrefixMapping have not any help for dom builder
-	//localNSMap = null
-	if(el.closed){
-		domBuilder.endElement(ns,localName,tagName);
-		if(localNSMap){
-			for(prefix in localNSMap){
-				domBuilder.endPrefixMapping(prefix) 
-			}
-		}
-	}else{
-		el.currentNSMap = currentNSMap;
-		el.localNSMap = localNSMap;
-		parseStack.push(el);
-	}
-}
-function parseHtmlSpecialContent(source,elStartEnd,tagName,entityReplacer,domBuilder){
-	if(/^(?:script|textarea)$/i.test(tagName)){
-		var elEndStart =  source.indexOf('</'+tagName+'>',elStartEnd);
-		var text = source.substring(elStartEnd+1,elEndStart);
-		if(/[&<]/.test(text)){
-			if(/^script$/i.test(tagName)){
-				//if(!/\]\]>/.test(text)){
-					//lexHandler.startCDATA();
-					domBuilder.characters(text,0,text.length);
-					//lexHandler.endCDATA();
-					return elEndStart;
-				//}
-			}//}else{//text area
-				text = text.replace(/&#?\w+;/g,entityReplacer);
-				domBuilder.characters(text,0,text.length);
-				return elEndStart;
-			//}
-			
-		}
-	}
-	return elStartEnd+1;
-}
-function fixSelfClosed(source,elStartEnd,tagName,closeMap){
-	//if(tagName in closeMap){
-	var pos = closeMap[tagName];
-	if(pos == null){
-		//console.log(tagName)
-		pos = closeMap[tagName] = source.lastIndexOf('</'+tagName+'>')
-	}
-	return pos<elStartEnd;
-	//} 
-}
-function _copy(source,target){
-	for(var n in source){target[n] = source[n]}
-}
-function parseDCC(source,start,domBuilder){//sure start with '<!'
-	var next= source.charAt(start+2)
-	switch(next){
-	case '-':
-		if(source.charAt(start + 3) === '-'){
-			var end = source.indexOf('-->',start+4);
-			//append comment source.substring(4,end)//<!--
-			domBuilder.comment(source,start+4,end-start-4);
-			return end+3;
-		}else{
-			//error
-			return -1;
-		}
-	default:
-		if(source.substr(start+3,6) == 'CDATA['){
-			var end = source.indexOf(']]>',start+9);
-			domBuilder.startCDATA();
-			domBuilder.characters(source,start+9,end-start-9);
-			domBuilder.endCDATA() 
-			return end+3;
-		}
-		//<!DOCTYPE
-		//startDTD(java.lang.String name, java.lang.String publicId, java.lang.String systemId) 
-		var matchs = split(source,start);
-		var len = matchs.length;
-		if(len>1 && /!doctype/i.test(matchs[0][0])){
-			var name = matchs[1][0];
-			var pubid = len>3 && /^public$/i.test(matchs[2][0]) && matchs[3][0]
-			var sysid = len>4 && matchs[4][0];
-			var lastMatch = matchs[len-1]
-			domBuilder.startDTD(name,pubid,sysid);
-			domBuilder.endDTD();
-			
-			return lastMatch.index+lastMatch[0].length
-		}
-	}
-	return -1;
-}
-
-
-
-function parseInstruction(source,start,domBuilder){
-	var end = source.indexOf('?>',start);
-	if(end){
-		var match = source.substring(start,end).match(/^<\?(\S*)\s*([\s\S]*?)\s*$/);
-		if(match){
-			var len = match[0].length;
-			domBuilder.processingInstruction(match[1], match[2]) ;
-			return end+2;
-		}else{//error
-			return -1;
-		}
-	}
-	return -1;
-}
-
-/**
- * @param source
- */
-function ElementAttributes(source){
-	
-}
-ElementAttributes.prototype = {
-	setTagName:function(tagName){
-		if(!tagNamePattern.test(tagName)){
-			throw new Error('invalid tagName:'+tagName)
-		}
-		this.tagName = tagName
-	},
-	add:function(qName,value,offset){
-		if(!tagNamePattern.test(qName)){
-			throw new Error('invalid attribute:'+qName)
-		}
-		this[this.length++] = {qName:qName,value:value,offset:offset}
-	},
-	length:0,
-	getLocalName:function(i){return this[i].localName},
-	getOffset:function(i){return this[i].offset},
-	getQName:function(i){return this[i].qName},
-	getURI:function(i){return this[i].uri},
-	getValue:function(i){return this[i].value}
-//	,getIndex:function(uri, localName)){
-//		if(localName){
-//			
-//		}else{
-//			var qName = uri
-//		}
-//	},
-//	getValue:function(){return this.getValue(this.getIndex.apply(this,arguments))},
-//	getType:function(uri,localName){}
-//	getType:function(i){},
-}
-
-
-
-
-function _set_proto_(thiz,parent){
-	thiz.__proto__ = parent;
-	return thiz;
-}
-if(!(_set_proto_({},_set_proto_.prototype) instanceof _set_proto_)){
-	_set_proto_ = function(thiz,parent){
-		function p(){};
-		p.prototype = parent;
-		p = new p();
-		for(parent in thiz){
-			p[parent] = thiz[parent];
-		}
-		return p;
-	}
-}
-
-function split(source,start){
-	var match;
-	var buf = [];
-	var reg = /'[^']+'|"[^"]+"|[^\s<>\/=]+=?|(\/?\s*>|<)/g;
-	reg.lastIndex = start;
-	reg.exec(source);//skip <
-	while(match = reg.exec(source)){
-		buf.push(match);
-		if(match[1])return buf;
-	}
-}
-
-if(typeof require == 'function'){
-	exports.XMLReader = XMLReader;
-}
-
-if(typeof require == 'function'){
-exports.XMLReader=XMLReader;
-}
-
-},{}],10:[function(require,module,exports){
+},{"./dom":31,"./sax":32}],31:[function(require,module,exports){
 /*
  * DOM Level 2
  * Object DOMException
@@ -8821,47 +14319,779 @@ if(typeof require == 'function'){
 	exports.XMLSerializer = XMLSerializer;
 }
 
-},{}],11:[function(require,module,exports){
-module.exports = hasKeys
-
-function hasKeys(source) {
-    return source !== null &&
-        (typeof source === "object" ||
-        typeof source === "function")
-}
-
-},{}],8:[function(require,module,exports){
-var Keys = require("object-keys")
-var hasKeys = require("./has-keys")
-
-module.exports = extend
-
-function extend() {
-    var target = {}
-
-    for (var i = 0; i < arguments.length; i++) {
-        var source = arguments[i]
-
-        if (!hasKeys(source)) {
-            continue
-        }
-
-        var keys = Keys(source)
-
-        for (var j = 0; j < keys.length; j++) {
-            var name = keys[j]
-            target[name] = source[name]
-        }
-    }
-
-    return target
-}
-
-},{"./has-keys":11,"object-keys":12}],12:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 module.exports = Object.keys || require('./shim');
 
 
-},{"./shim":13}],13:[function(require,module,exports){
+},{"./shim":33}],27:[function(require,module,exports){
+/*
+
+	(The MIT License)
+
+	Copyright (C) 2005-2013 Kai Davenport
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ */
+
+/*
+  Module dependencies.
+*/
+
+var _ = require('lodash');
+var utils = require('digger-utils');
+var async = require('async');
+
+/*
+  Quarry.io - Container Search
+  ----------------------------
+
+  Takes a search_from container and an array of strings
+
+  It reverses the strings and does a simulated pipe
+
+
+ */
+
+module.exports.searcher = search;
+module.exports.compiler = compile;
+
+/*
+  These functions are used to run attribute selectors over in-memory containers
+ */
+var attr_compare_functions = {
+  "=":function(check, target){
+    return !_.isUndefined(check) && check==target;
+  },
+  "!=":function(check, target){
+    return !_.isUndefined(check) && check!=target;
+  },
+  ">":function(check, target){
+    target = parseFloat(target);
+    return !_.isUndefined(check) && !isNaN(target) ? check > target : false;
+  },
+  ">=":function(check, target){
+    target = parseFloat(target);
+    return !_.isUndefined(check) && !isNaN(target) ? check >= target : false;
+  },
+  "<":function(check, target){
+    target = parseFloat(target);
+    return !_.isUndefined(check) && !isNaN(target) ? check < target : false;
+  },
+  "<=":function(check, target){
+    target = parseFloat(target);
+    return !_.isUndefined(check) && !isNaN(target) ? check <= target : false;
+  },
+  "^=":function(check, target){
+    return !_.isUndefined(check) && check.match(new RegExp('^' + utils.escapeRegexp(target), 'i')) !== null;
+  },
+  "$=":function(check, target){
+    return !_.isUndefined(check) && check.match(new RegExp(utils.escapeRegexp(target) + '$', 'i')) !== null;
+  },
+  "~=":function(check, target){
+    return !_.isUndefined(check) && check.match(new RegExp('\\W' + utils.escapeRegexp(target) + '\\W', 'i')) !== null;
+  },
+  "|=":function(check, target){
+    return !_.isUndefined(check) && check.match(new RegExp('^' + utils.escapeRegexp(target) + '-', 'i')) !== null;
+  },
+  "*=":function(check, target){
+    return !_.isUndefined(check) && check.match(new RegExp(utils.escapeRegexp(target), 'i')) !== null;
+  }
+}
+
+/*
+
+  Turn a selector object into a compiled function to have containers run through
+  
+ */
+
+function compile(selector){
+
+  // return a function that will return boolean for a container matching this selector
+  return function(container){
+
+    // we step through one at a time - as soon as something fails we do not match
+
+    // if we have a wildcard then we pass
+    if(selector.tag=='*'){
+      return true;
+    }
+
+    // #id
+    if(selector.id && container.id()!=selector.id){      
+      return false;
+    }
+
+    // =diggerid
+    if(selector.diggerid && container.diggerid()!=selector.diggerid){
+      return false;
+    }
+
+    // tagname
+    if(selector.tag && container.tag()!=selector.tag){
+      return false;
+    }
+  
+    // classnames
+    if(selector.class){
+      // make sure ALL of the classnames in the selector are in the container
+      return _.all(_.keys(selector.class), function(classname){
+        return container.hasClass(classname);
+      })
+    }
+    
+    if(selector.attr){
+
+      var all_attributes_passed = _.all(selector.attr, function(attr_filter){
+
+        var check_value = container.attr(attr_filter.field);
+        var operator_function = attr_compare_functions[attr_filter.operator];
+
+        // [size]
+        if(!attr_filter.value){
+          return check_value !== null;
+        }
+        // [size>100]
+        else if(operator_function){
+          return operator_function.apply(null, [check_value, attr_filter.value]);
+        }
+        // no operator function found
+        else{
+          return false;
+        }
+      })
+
+      if(!all_attributes_passed){
+        return false;
+      }
+
+    }
+
+    return true;
+      
+  }
+}
+
+function search(selector, context){
+
+  var selector_filter = compile(selector);
+
+  var search_in = context;
+
+  // we must now turn the search_from container into a flat array of the things to actually search
+
+  // direct child mode
+  if(selector.splitter=='>'){
+    search_in = context.children();
+  }
+  // direct parent mode
+  else if(selector.splitter=='<'){
+    throw new Error('we do not support the parent splitter at the moment');
+  }
+  // all descendents mode
+  else{
+    search_in = context.descendents();
+  }
+
+  // now we loop each child container piping it via the selector filter
+  var ret = search_in.filter(selector_filter);
+
+  var modifier = selector.modifier || {};
+
+  if(modifier.limit){
+    var st = '' + modifier.limit;
+    if(st.indexOf(',')>=0){
+      var parts = _.map(st.split(','), function(stt){
+        return stt.replace(/\D/g, '');
+      })
+      ret.models = ret.models.slice(parts[0], parts[1]);
+    }
+    else{
+      ret.models = ret.models.slice(0, modifier.limit);
+    }
+    
+  }
+
+  if(modifier.first && ret.models.length>0){
+    ret.models = [ret.models[0]];
+  }
+  else if(modifier.last && ret.models.length>0){
+    ret.models = [ret.models[ret.models.length-1]];
+  }
+
+  return ret;
+}
+},{"async":20,"digger-utils":14,"lodash":11}],32:[function(require,module,exports){
+//[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+//[4a]   	NameChar	   ::=   	NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
+//[5]   	Name	   ::=   	NameStartChar (NameChar)*
+var nameStartChar = /[A-Z_a-z\xC0-\xD6\xD8-\xF6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]///\u10000-\uEFFFF
+var nameChar = new RegExp("[\\-\\.0-9"+nameStartChar.source.slice(1,-1)+"\u00B7\u0300-\u036F\\ux203F-\u2040]");
+var tagNamePattern = new RegExp('^'+nameStartChar.source+nameChar.source+'*(?:\:'+nameStartChar.source+nameChar.source+'*)?$');
+//var tagNamePattern = /^[a-zA-Z_][\w\-\.]*(?:\:[a-zA-Z_][\w\-\.]*)?$/
+//var handlers = 'resolveEntity,getExternalSubset,characters,endDocument,endElement,endPrefixMapping,ignorableWhitespace,processingInstruction,setDocumentLocator,skippedEntity,startDocument,startElement,startPrefixMapping,notationDecl,unparsedEntityDecl,error,fatalError,warning,attributeDecl,elementDecl,externalEntityDecl,internalEntityDecl,comment,endCDATA,endDTD,endEntity,startCDATA,startDTD,startEntity'.split(',')
+
+//S_TAG,	S_ATTR,	S_EQ,	S_V
+//S_ATTR_S,	S_E,	S_S,	S_C
+var S_TAG = 0;//tag name offerring
+var S_ATTR = 1;//attr name offerring 
+var S_ATTR_S=2;//attr name end and space offer
+var S_EQ = 3;//=space?
+var S_V = 4;//attr value(no quot value only)
+var S_E = 5;//attr value end and no space(quot end)
+var S_S = 6;//(attr value end || tag end ) && (space offer)
+var S_C = 7;//closed el<el />
+
+function XMLReader(){
+}
+
+XMLReader.prototype = {
+	parse:function(source,defaultNSMap,entityMap){
+		var domBuilder = this.domBuilder;
+		domBuilder.startDocument();
+		_copy(defaultNSMap ,defaultNSMap = {})
+		parse(source,defaultNSMap,entityMap,
+				domBuilder,this.errorHandler);
+		domBuilder.endDocument();
+	}
+}
+function parse(source,defaultNSMapCopy,entityMap,domBuilder,errorHandler){
+  function fixedFromCharCode(code) {
+		// String.prototype.fromCharCode does not supports
+		// > 2 bytes unicode chars directly
+		if (code > 0xffff) {
+			code -= 0x10000;
+			var surrogate1 = 0xd800 + (code >> 10)
+				, surrogate2 = 0xdc00 + (code & 0x3ff);
+
+			return String.fromCharCode(surrogate1, surrogate2);
+		} else {
+			return String.fromCharCode(code);
+		}
+	}
+	function entityReplacer(a){
+		var k = a.slice(1,-1);
+		if(k in entityMap){
+			return entityMap[k]; 
+		}else if(k.charAt(0) === '#'){
+			return fixedFromCharCode(parseInt(k.substr(1).replace('x','0x')))
+		}else{
+			errorHandler.error('entity not found:'+a);
+			return a;
+		}
+	}
+	function appendText(end){//has some bugs
+		var xt = source.substring(start,end).replace(/&#?\w+;/g,entityReplacer);
+		locator&&position(start);
+		domBuilder.characters(xt,0,end-start);
+		start = end
+	}
+	function position(start,m){
+		while(start>=endPos && (m = linePattern.exec(source))){
+			startPos = m.index;
+			endPos = startPos + m[0].length;
+			locator.lineNumber++;
+			//console.log('line++:',locator,startPos,endPos)
+		}
+		locator.columnNumber = start-startPos+1;
+	}
+	var startPos = 0;
+	var endPos = 0;
+	var linePattern = /.+(?:\r\n?|\n)|.*$/g
+	var locator = domBuilder.locator;
+	
+	var parseStack = [{currentNSMap:defaultNSMapCopy}]
+	var closeMap = {};
+	var start = 0;
+	while(true){
+		var i = source.indexOf('<',start);
+		if(i>start){
+			appendText(i);
+		}
+		switch(source.charAt(i+1)){
+		case '/':
+			var end = source.indexOf('>',i+3);
+			var tagName = source.substring(i+2,end);
+			var config = parseStack.pop();
+			var localNSMap = config.localNSMap;
+			
+	        if(config.tagName != tagName){
+	            errorHandler.fatalError("end tag name: "+tagName+' is not match the current start tagName:'+config.tagName );
+	        }
+			domBuilder.endElement(config.uri,config.localName,tagName);
+			if(localNSMap){
+				for(var prefix in localNSMap){
+					domBuilder.endPrefixMapping(prefix) ;
+				}
+			}
+			end++;
+			break;
+			// end elment
+		case '?':// <?...?>
+			locator&&position(i);
+			end = parseInstruction(source,i,domBuilder);
+			break;
+		case '!':// <!doctype,<![CDATA,<!--
+			locator&&position(i);
+			end = parseDCC(source,i,domBuilder);
+			break;
+		default:
+			if(i<0){
+				if(!source.substr(start).match(/^\s*$/)){
+					errorHandler.error('source code out of document root');
+				}
+				return;
+			}else{
+				try{
+					locator&&position(i);
+					var el = new ElementAttributes();
+					//elStartEnd
+					var end = parseElementStartPart(source,i,el,entityReplacer,errorHandler);
+					var len = el.length;
+					//position fixed
+					if(len && locator){
+						var backup = copyLocator(locator,{});
+						for(var i = 0;i<len;i++){
+							var a = el[i];
+							position(a.offset);
+							a.offset = copyLocator(locator,{});
+						}
+						copyLocator(backup,locator);
+					}
+					el.closed = el.closed||fixSelfClosed(source,end,el.tagName,closeMap);
+					appendElement(el,domBuilder,parseStack);
+					
+					
+					if(el.uri === 'http://www.w3.org/1999/xhtml' && !el.closed){
+						end = parseHtmlSpecialContent(source,end,el.tagName,entityReplacer,domBuilder)
+					}else{
+						end++;
+					}
+				}catch(e){
+					errorHandler.error('element parse error: '+e);
+					end = -1;
+				}
+			}
+
+		}
+		if(end<0){
+			//TODO: 这里有可能sax回退，有位置错误风险
+			appendText(i+1);
+		}else{
+			start = end;
+		}
+	}
+}
+function copyLocator(f,t){
+	t.lineNumber = f.lineNumber;
+	t.columnNumber = f.columnNumber;
+	return t;
+	
+}
+
+/**
+ * @see #appendElement(source,elStartEnd,el,selfClosed,entityReplacer,domBuilder,parseStack);
+ * @return end of the elementStartPart(end of elementEndPart for selfClosed el)
+ */
+function parseElementStartPart(source,start,el,entityReplacer,errorHandler){
+	var attrName;
+	var value;
+	var p = ++start;
+	var s = S_TAG;//status
+	while(true){
+		var c = source.charAt(p);
+		switch(c){
+		case '=':
+			if(s === S_ATTR){//attrName
+				attrName = source.slice(start,p);
+				s = S_EQ;
+			}else if(s === S_ATTR_S){
+				s = S_EQ;
+			}else{
+				//fatalError: equal must after attrName or space after attrName
+				throw new Error('attribute equal must after attrName');
+			}
+			break;
+		case '\'':
+		case '"':
+			if(s === S_EQ){//equal
+				start = p+1;
+				p = source.indexOf(c,start)
+				if(p>0){
+					value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
+					el.add(attrName,value,start-1);
+					s = S_E;
+				}else{
+					//fatalError: no end quot match
+					throw new Error('attribute value no end \''+c+'\' match');
+				}
+			}else if(s == S_V){
+				value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
+				//console.log(attrName,value,start,p)
+				el.add(attrName,value,start);
+				//console.dir(el)
+				errorHandler.warning('attribute "'+attrName+'" missed start quot('+c+')!!');
+				start = p+1;
+				s = S_E
+			}else{
+				//fatalError: no equal before
+				throw new Error('attribute value must after "="');
+			}
+			break;
+		case '/':
+			switch(s){
+			case S_TAG:
+				el.setTagName(source.slice(start,p));
+			case S_E:
+			case S_S:
+			case S_C:
+				s = S_C;
+				el.closed = true;
+			case S_V:
+			case S_ATTR:
+			case S_ATTR_S:
+				break;
+			//case S_EQ:
+			default:
+				throw new Error("attribute invalid close char('/')")
+			}
+			break;
+		case '>':
+			switch(s){
+			case S_TAG:
+				el.setTagName(source.slice(start,p));
+			case S_E:
+			case S_S:
+			case S_C:
+				break;//normal
+			case S_V://Compatible state
+			case S_ATTR:
+				value = source.slice(start,p);
+				if(value.slice(-1) === '/'){
+					el.closed  = true;
+					value = value.slice(0,-1)
+				}
+			case S_ATTR_S:
+				if(s === S_ATTR_S){
+					value = attrName;
+				}
+				if(s == S_V){
+					errorHandler.warning('attribute "'+value+'" missed quot(")!!');
+					el.add(attrName,value.replace(/&#?\w+;/g,entityReplacer),start)
+				}else{
+					errorHandler.warning('attribute "'+value+'" missed value!! "'+value+'" instead!!')
+					el.add(value,value,start)
+				}
+				break;
+			case S_EQ:
+				throw new Error('attribute value missed!!');
+			}
+//			console.log(tagName,tagNamePattern,tagNamePattern.test(tagName))
+			return p;
+		/*xml space '\x20' | #x9 | #xD | #xA; */
+		case '\u0080':
+			c = ' ';
+		default:
+			if(c<= ' '){//space
+				switch(s){
+				case S_TAG:
+					el.setTagName(source.slice(start,p));//tagName
+					s = S_S;
+					break;
+				case S_ATTR:
+					attrName = source.slice(start,p)
+					s = S_ATTR_S;
+					break;
+				case S_V:
+					var value = source.slice(start,p).replace(/&#?\w+;/g,entityReplacer);
+					errorHandler.warning('attribute "'+value+'" missed quot(")!!');
+					el.add(attrName,value,start)
+				case S_E:
+					s = S_S;
+					break;
+				//case S_S:
+				//case S_EQ:
+				//case S_ATTR_S:
+				//	void();break;
+				//case S_C:
+					//ignore warning
+				}
+			}else{//not space
+//S_TAG,	S_ATTR,	S_EQ,	S_V
+//S_ATTR_S,	S_E,	S_S,	S_C
+				switch(s){
+				//case S_TAG:void();break;
+				//case S_ATTR:void();break;
+				//case S_V:void();break;
+				case S_ATTR_S:
+					errorHandler.warning('attribute "'+attrName+'" missed value!! "'+attrName+'" instead!!')
+					el.add(attrName,attrName,start);
+					start = p;
+					s = S_ATTR;
+					break;
+				case S_E:
+					errorHandler.warning('attribute space is required"'+attrName+'"!!')
+				case S_S:
+					s = S_ATTR;
+					start = p;
+					break;
+				case S_EQ:
+					s = S_V;
+					start = p;
+					break;
+				case S_C:
+					throw new Error("elements closed character '/' and '>' must be connected to");
+				}
+			}
+		}
+		p++;
+	}
+}
+/**
+ * @return end of the elementStartPart(end of elementEndPart for selfClosed el)
+ */
+function appendElement(el,domBuilder,parseStack){
+	var tagName = el.tagName;
+	var localNSMap = null;
+	var currentNSMap = parseStack[parseStack.length-1].currentNSMap;
+	var i = el.length;
+	while(i--){
+		var a = el[i];
+		var qName = a.qName;
+		var value = a.value;
+		var nsp = qName.indexOf(':');
+		if(nsp>0){
+			var prefix = a.prefix = qName.slice(0,nsp);
+			var localName = qName.slice(nsp+1);
+			var nsPrefix = prefix === 'xmlns' && localName
+		}else{
+			localName = qName;
+			prefix = null
+			nsPrefix = qName === 'xmlns' && ''
+		}
+		//can not set prefix,because prefix !== ''
+		a.localName = localName ;
+		//prefix == null for no ns prefix attribute 
+		if(nsPrefix !== false){//hack!!
+			if(localNSMap == null){
+				localNSMap = {}
+				_copy(currentNSMap,currentNSMap={})
+			}
+			currentNSMap[nsPrefix] = localNSMap[nsPrefix] = value;
+			a.uri = 'http://www.w3.org/2000/xmlns/'
+			domBuilder.startPrefixMapping(nsPrefix, value) 
+		}
+	}
+	var i = el.length;
+	while(i--){
+		a = el[i];
+		var prefix = a.prefix;
+		if(prefix){//no prefix attribute has no namespace
+			if(prefix === 'xml'){
+				a.uri = 'http://www.w3.org/XML/1998/namespace';
+			}if(prefix !== 'xmlns'){
+				a.uri = currentNSMap[prefix]
+			}
+		}
+	}
+	var nsp = tagName.indexOf(':');
+	if(nsp>0){
+		prefix = el.prefix = tagName.slice(0,nsp);
+		localName = el.localName = tagName.slice(nsp+1);
+	}else{
+		prefix = null;//important!!
+		localName = el.localName = tagName;
+	}
+	//no prefix element has default namespace
+	var ns = el.uri = currentNSMap[prefix || ''];
+	domBuilder.startElement(ns,localName,tagName,el);
+	//endPrefixMapping and startPrefixMapping have not any help for dom builder
+	//localNSMap = null
+	if(el.closed){
+		domBuilder.endElement(ns,localName,tagName);
+		if(localNSMap){
+			for(prefix in localNSMap){
+				domBuilder.endPrefixMapping(prefix) 
+			}
+		}
+	}else{
+		el.currentNSMap = currentNSMap;
+		el.localNSMap = localNSMap;
+		parseStack.push(el);
+	}
+}
+function parseHtmlSpecialContent(source,elStartEnd,tagName,entityReplacer,domBuilder){
+	if(/^(?:script|textarea)$/i.test(tagName)){
+		var elEndStart =  source.indexOf('</'+tagName+'>',elStartEnd);
+		var text = source.substring(elStartEnd+1,elEndStart);
+		if(/[&<]/.test(text)){
+			if(/^script$/i.test(tagName)){
+				//if(!/\]\]>/.test(text)){
+					//lexHandler.startCDATA();
+					domBuilder.characters(text,0,text.length);
+					//lexHandler.endCDATA();
+					return elEndStart;
+				//}
+			}//}else{//text area
+				text = text.replace(/&#?\w+;/g,entityReplacer);
+				domBuilder.characters(text,0,text.length);
+				return elEndStart;
+			//}
+			
+		}
+	}
+	return elStartEnd+1;
+}
+function fixSelfClosed(source,elStartEnd,tagName,closeMap){
+	//if(tagName in closeMap){
+	var pos = closeMap[tagName];
+	if(pos == null){
+		//console.log(tagName)
+		pos = closeMap[tagName] = source.lastIndexOf('</'+tagName+'>')
+	}
+	return pos<elStartEnd;
+	//} 
+}
+function _copy(source,target){
+	for(var n in source){target[n] = source[n]}
+}
+function parseDCC(source,start,domBuilder){//sure start with '<!'
+	var next= source.charAt(start+2)
+	switch(next){
+	case '-':
+		if(source.charAt(start + 3) === '-'){
+			var end = source.indexOf('-->',start+4);
+			//append comment source.substring(4,end)//<!--
+			domBuilder.comment(source,start+4,end-start-4);
+			return end+3;
+		}else{
+			//error
+			return -1;
+		}
+	default:
+		if(source.substr(start+3,6) == 'CDATA['){
+			var end = source.indexOf(']]>',start+9);
+			domBuilder.startCDATA();
+			domBuilder.characters(source,start+9,end-start-9);
+			domBuilder.endCDATA() 
+			return end+3;
+		}
+		//<!DOCTYPE
+		//startDTD(java.lang.String name, java.lang.String publicId, java.lang.String systemId) 
+		var matchs = split(source,start);
+		var len = matchs.length;
+		if(len>1 && /!doctype/i.test(matchs[0][0])){
+			var name = matchs[1][0];
+			var pubid = len>3 && /^public$/i.test(matchs[2][0]) && matchs[3][0]
+			var sysid = len>4 && matchs[4][0];
+			var lastMatch = matchs[len-1]
+			domBuilder.startDTD(name,pubid,sysid);
+			domBuilder.endDTD();
+			
+			return lastMatch.index+lastMatch[0].length
+		}
+	}
+	return -1;
+}
+
+
+
+function parseInstruction(source,start,domBuilder){
+	var end = source.indexOf('?>',start);
+	if(end){
+		var match = source.substring(start,end).match(/^<\?(\S*)\s*([\s\S]*?)\s*$/);
+		if(match){
+			var len = match[0].length;
+			domBuilder.processingInstruction(match[1], match[2]) ;
+			return end+2;
+		}else{//error
+			return -1;
+		}
+	}
+	return -1;
+}
+
+/**
+ * @param source
+ */
+function ElementAttributes(source){
+	
+}
+ElementAttributes.prototype = {
+	setTagName:function(tagName){
+		if(!tagNamePattern.test(tagName)){
+			throw new Error('invalid tagName:'+tagName)
+		}
+		this.tagName = tagName
+	},
+	add:function(qName,value,offset){
+		if(!tagNamePattern.test(qName)){
+			throw new Error('invalid attribute:'+qName)
+		}
+		this[this.length++] = {qName:qName,value:value,offset:offset}
+	},
+	length:0,
+	getLocalName:function(i){return this[i].localName},
+	getOffset:function(i){return this[i].offset},
+	getQName:function(i){return this[i].qName},
+	getURI:function(i){return this[i].uri},
+	getValue:function(i){return this[i].value}
+//	,getIndex:function(uri, localName)){
+//		if(localName){
+//			
+//		}else{
+//			var qName = uri
+//		}
+//	},
+//	getValue:function(){return this.getValue(this.getIndex.apply(this,arguments))},
+//	getType:function(uri,localName){}
+//	getType:function(i){},
+}
+
+
+
+
+function _set_proto_(thiz,parent){
+	thiz.__proto__ = parent;
+	return thiz;
+}
+if(!(_set_proto_({},_set_proto_.prototype) instanceof _set_proto_)){
+	_set_proto_ = function(thiz,parent){
+		function p(){};
+		p.prototype = parent;
+		p = new p();
+		for(parent in thiz){
+			p[parent] = thiz[parent];
+		}
+		return p;
+	}
+}
+
+function split(source,start){
+	var match;
+	var buf = [];
+	var reg = /'[^']+'|"[^"]+"|[^\s<>\/=]+=?|(\/?\s*>|<)/g;
+	reg.lastIndex = start;
+	reg.exec(source);//skip <
+	while(match = reg.exec(source)){
+		buf.push(match);
+		if(match[1])return buf;
+	}
+}
+
+if(typeof require == 'function'){
+	exports.XMLReader = XMLReader;
+}
+
+if(typeof require == 'function'){
+exports.XMLReader=XMLReader;
+}
+
+},{}],33:[function(require,module,exports){
 (function () {
 	"use strict";
 
@@ -8907,7 +15137,7 @@ module.exports = Object.keys || require('./shim');
 }());
 
 
-},{"foreach":15,"is":14}],14:[function(require,module,exports){
+},{"foreach":35,"is":34}],34:[function(require,module,exports){
 
 /**!
  * is
@@ -9611,7 +15841,7 @@ is.string = function (value) {
 };
 
 
-},{}],15:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 
 var hasOwn = Object.prototype.hasOwnProperty;
 
@@ -9634,5 +15864,5 @@ module.exports = function forEach (obj, fn, ctx) {
 };
 
 
-},{}]},{},[3])
+},{}]},{},[1])
 ;

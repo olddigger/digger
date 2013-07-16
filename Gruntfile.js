@@ -18,7 +18,7 @@ module.exports = function(grunt) {
       }
     },
     browserify: {
-      'build/container.js': ['src/container/xmlapi.js']
+      'build/container.js': ['src/container/digger.js']
     },
     uglify: {
       options: {
@@ -27,7 +27,7 @@ module.exports = function(grunt) {
       },
       dist: {
         files: {
-          'build/container.min.js': ['build/container.js']
+          'build/digger.min.js': ['build/digger.js']
         }
       }
     },

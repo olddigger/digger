@@ -57,6 +57,7 @@ var exports = module.exports = {
   request:require('./request/request').factory,
   response:require('./request/response').factory,
   contract:require('./request/contract').factory,
+  async:require('./request/async').async,
   pipe:require('./request/async').pipe,
   merge:require('./request/async').merge,
   series:require('./request/async').series,

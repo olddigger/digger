@@ -12,15 +12,4 @@
 
  */
 
-/*
-  Module dependencies.
-*/
-var EventEmitter = require('events').EventEmitter;
-var _ = require('lodash');
-var xmldom = require('xmldom');
-var async = require('async');
-//var utils = require('digger-utils');
-var xtend = require('xtend');
-//var uuid = require('node-uuid');
-var extend = require('extend');
-//module.exports = require('./supplychain');
+module.exports = require('./supplychain');
