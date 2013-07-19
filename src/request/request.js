@@ -52,6 +52,10 @@ function Request(data){
   Message.apply(this, [data]);
 
   this.url = data.url || '/';
+
+  if(this.url.indexOf(':/')<0 && this.url.indexOf('/')!==0){
+    this.url = '/' + this.url;
+  }
   this.method = data.method || 'get';
   this.query = data.query || {};
 

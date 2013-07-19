@@ -18,13 +18,14 @@
 	
 */
 
-
-var path = require('path');
+var _ = require('lodash');
+var async = require('async');
 
 var exports = module.exports = {
 
-  version:require(__dirname + '/../package.json').version,
-
+  _:_,
+  async:async,
+  
   /*
   
     export utils for supplier modules
@@ -57,19 +58,10 @@ var exports = module.exports = {
   request:require('./request/request').factory,
   response:require('./request/response').factory,
   contract:require('./request/contract').factory,
-  async:require('./request/async').async,
+  asyncmethods:require('./request/async'),
   pipe:require('./request/async').pipe,
   merge:require('./request/async').merge,
   series:require('./request/async').series,
-  parallel:require('./request/async').merge,
-
-
-
-  browserapi_path:function(){
-    return path.normalize(__dirname + '/../build/container.js');
-  }
-
-
-
+  parallel:require('./request/async').merge
 
 }
