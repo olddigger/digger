@@ -228,7 +228,15 @@ Container.prototype.clone = function(){
   var data = JSON.parse(JSON.stringify(this.models));
   var ret = this.spawn(data);
   ret.recurse(function(des){
-    des.diggerid(utils.diggerid());
+     var _digger = {
+      tag:des.tag(),
+      id:des.id(),
+      diggerid:utils.diggerid(),
+      class:des.classnames(),
+      blueprint:des.digger('blueprint'),
+      icon:des.digger('icon')
+    }
+    des.get(0)._digger = _digger;
   })
   ret.ensure_parent_ids();
   return ret;

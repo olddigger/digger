@@ -125,7 +125,7 @@ function string_factory(data, depth){
   var pair_strings = [];
 
   _.each(attr, function(val, key){
-    if(key.indexOf('_')==0){
+    if(key.indexOf('_')===0){
       return;
     }
     pairs[key] = _.isString(val) ? val : '' + val;
