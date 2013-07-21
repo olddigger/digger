@@ -155,7 +155,7 @@ var chunkers = [
       }
       else {
         map.attr.push({
-          field:attrString.replace(/^\[/, '').replace(/\]$/, '')
+          field:val.replace(/^\[/, '').replace(/\]$/, '')
         });
       }
     }
