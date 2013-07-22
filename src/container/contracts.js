@@ -226,14 +226,21 @@ function save(){
   delete(data._children);
   delete(data._data);
 
-  var suppliercontract = Request({
-    method:'put',
-    url:this.diggerurl(),
-    body:data
+  /*
+  
+    map each of the containers into the merge contract
+    
+  */
+  contract.body = this.map(function(savecontainer){
+    var suppliercontract = Request({
+      method:'put',
+      url:savecontainer.diggerurl(),
+      body:data
+    })
+
+    return suppliercontract.toJSON();
   })
 
-  contract.body = [suppliercontract.toJSON()];
-  
   contract.supplychain = this.supplychain;
   return contract;
 }
@@ -254,7 +261,14 @@ function remove(){
     url:this.diggerurl()
   })    
 
-  contract.body = [suppliercontract.toJSON()];
+  contract.body = this.map(function(deletecontainer){
+    var suppliercontract = Request({
+      method:'delete',
+      url:deletecontainer.diggerurl()
+    })
+
+    return suppliercontract.toJSON();
+  })
 
   contract.supplychain = this.supplychain;
   return contract;
