@@ -248,7 +248,7 @@ Container.prototype.clone = function(){
   
 */
 Container.prototype.propertymodel = function(field){
-  if(field.indexOf('.')<0){
+  if(!field || field.indexOf('.')<0){
     return this.get(0);
   }
   else{
@@ -658,7 +658,9 @@ Container.prototype.summary = function(options){
 
   var classnames = this.classnames() || [];
   if(classnames.length>0){
-    parts = parts.concat(_.map(classnames, function(classname){
+    parts = parts.concat(_.map(_.filter(classnames, function(classname){
+      return classname && classname.length>0;
+    }), function(classname){
       return '.' + classname
     }))
   }

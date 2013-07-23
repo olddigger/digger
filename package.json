@@ -1,6 +1,6 @@
 {
   "name": "digger",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "JQuery container api for digger.io",
   "main": "src/index.js",
   "scripts": {
