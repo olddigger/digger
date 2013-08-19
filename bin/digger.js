@@ -41,8 +41,8 @@ program
 
     app.on('loaded', function(doc){
     	console.log('warehouse routes:');
-      for(var route in (doc.digger.suppliers || {})){
-        var config = doc.digger.suppliers[route];
+      for(var route in (doc.digger || {})){
+        var config = doc.digger[route];
         console.log('   ' + route + ': ' + config.type);
       }
     })
@@ -51,8 +51,12 @@ program
       console.log('website domain: ' + domain);
     })
 
+    app.on('auth', function(settings){
+      console.log('mounting authentication: ' + settings.url);
+    })
+
     app.on('www', function(doc_root){
-      console.log('webserver document_root: ' + doc_root);
+      console.log('website document_root: ' + doc_root);
     })
 
     app.start(port, function(){

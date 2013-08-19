@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>digger</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>digger</h1>
+        <p>The JQuery inspired database server</p>
+
+        <p class="view"><a href="https://github.com/binocarlos/digger">View the Project on GitHub <small>binocarlos/digger</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/binocarlos/digger/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/binocarlos/digger/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/binocarlos/digger">View On <strong>GitHub</strong></a></li>
+        </ul>
+
+        <img src="assets/digger.png" width=230 style="margin:10px;" />
+      </header>
+      <section>
+        <h3>
+<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>digger = database + JQuery</h3>
+
+<p>digger enables you to work with a JQuery style api to speak to multiple backend databases.</p>
+
+<p>You can search these databases using <strong><a href="https://github.com/binocarlos/digger-selector">digger selectors</a></strong> - a powerful new way to search databases.</p>
+
+<pre><code>// connect to a supplier warehouse
+var warehouse = $digger.connect('/my/database');
+
+// this is a selector like JQUery
+var selector = 'product[price&lt;100]';
+
+// we are we searching in
+var context = 'folder#shop';
+
+warehouse(selector, context)
+.ship(function(products){
+	alert(products.count() + ' loaded');
+})
+</code></pre>
+
+<p>digger connects a JQuery client api to backend <strong><a href="https://github.com/binocarlos/digger-supplier">digger suppliers</a></strong></p>
+
+<h3>
+<a name="tree-structure" class="anchor" href="#tree-structure"><span class="octicon octicon-link"></span></a>Tree Structure</h3>
+
+<p>People like to put stuff inside other stuff.</p>
+
+<p>We have found that non-technical people can relate to a database that has a tree structure more easily that relational databases.</p>
+
+<p>People seem comfortable using Windows Explorer or Mac Finder and yet the word database scares them.</p>
+
+<p>digger suppliers understand that things live inside other things i.e. they work with tree structures.</p>
+
+<p>Web designers also understand tree structures because the DOM is one big fat tree and JQuery is very good at working with it (which is why JQuery is on more than <a href="http://w3techs.com/blog/entry/jquery_now_runs_on_every_second_website">half the Internet</a>).</p>
+
+<p>digger brings you that same JQuery goodness but for a radical new purpose - server side database manipulation.</p>
+
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/binocarlos">binocarlos</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-43283338-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>

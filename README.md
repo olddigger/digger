@@ -8,21 +8,8 @@ command line tools to run a [digger.io](https://github.com/binocarlos/digger.io)
 
 ## usage
 
-this script boots one parts of a digger.io network at a time
+navigate to a folder that contains a digger.yml file and:
 
-### reception server
+	sudo digger serve
 
-	$ digger 
-
-### reception server
-
-The reception server provides a REST based HTTP server that acts as the gateway to your backend suppliers.
-
-
-
-
-
- * supplier - run a database supplier and mount it onto a path
- * reception - run a reception server
-
-
+will bring up the stack on port 80
