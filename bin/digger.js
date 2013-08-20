@@ -7,7 +7,7 @@
 var program = require('commander');
 var version = require('../package.json').version;
 var path = require('path');
-var DiggerApp = require('digger-app');
+var DiggerApp = require('../src');
 
 var fs = require('fs');
 
@@ -48,7 +48,11 @@ program
     })
 
     app.on('website', function(domain){
-      console.log('website domain: ' + domain);
+      console.log('   website domain: ' + domain);
+    })
+
+    app.on('website:module', function(route){
+      console.log('   website module: ' + route);
     })
 
     app.on('auth', function(settings){
