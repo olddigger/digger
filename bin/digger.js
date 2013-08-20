@@ -39,12 +39,12 @@ program
     	application_root:app_root
     })
 
-    app.on('loaded', function(doc){
-    	console.log('warehouse routes:');
-      for(var route in (doc.digger || {})){
-        var config = doc.digger[route];
-        console.log('   ' + route + ': ' + config.type);
-      }
+    app.on('config', function(doc){
+      console.log('loading digger stack: ' + doc.name);
+    })
+
+    app.on('warehouse', function(route, config){
+      console.log('   warehouse route: ' + route + ': ' + config.type);
     })
 
     app.on('website', function(domain){
