@@ -21,6 +21,7 @@ var _ = require('lodash');
 var util = require('util');
 var async = require('async');
 var EventEmitter = require('events').EventEmitter;
+var ErrorHandler = require('./errorhandler');
 var Config = require('./config');
 
 //var DiggerServe = require('digger-serve');
@@ -38,8 +39,8 @@ function Application(application_root){
 		self.emit('loaded', path);
 	})
 
-	this.config.on('service', function(data){
-		self.emit('service', data);
+	this.config.on('data', function(data){
+		self.emit('data', data);
 	})
 
 	this.config.on('node', function(data){
@@ -62,32 +63,72 @@ Application.prototype.load = function(done){
 
 }
 
-Application.prototype.inspect = function(name){
+/*
+Application.prototype.bootstrap = function(port, doc, done){
 	var self = this;
-	if(name=='hq'){
-		return {
-			module:'hq'
-		}
+
+	this.doc = doc;
+	this.digger = DiggerServe();
+
+	this.reception = this.build_reception(this.doc.reception);
+
+	this.connector = this.reception.connector();
+
+	this.reception.create_warehouses(this.doc.warehouses, this.connector);
+	this.reception.connect_sockets(this.digger.io);
+
+	this.digger.app.use(this.digger.app.router);
+	this.digger.app.use('/__digger/assets', this.digger.express.static(path.normalize(__dirname + '/../assets')));
+	this.digger.app.use(ErrorHandler());
+
+	this.digger.server.listen(port, function(){
+		self.emit('loaded', doc);
+		done();
+	});
+}
+
+Application.prototype.start = function(port, done){
+	var self = this;
+	
+	this.load_config(function(error, doc){
+
+		self.bootstrap(port, doc, function(){
+			self.build_websites(done);
+		});
+	})
+
+}
+
+Application.prototype.build_reception = require('./reception');
+Application.prototype.build_websites =require('./website').build_websites; 
+Application.prototype.build_website = require('./website').build_website;
+
+Application.prototype.filepath = function(pathname){
+	if(pathname.indexOf('/')!=0){
+		pathname = path.normalize(this.root_path + '/' + pathname);
 	}
-	return self.config.nodes[name];
+	return pathname;
 }
 
-Application.prototype.get_services = function(){
-	return _.keys(this.config.services);
-}
+Application.prototype.build_module = function(path, config){
+	var self = this;
+	var module_path = this.filepath(path);
+	var module = null;
 
-Application.prototype.get_nodes = function(){
-	return _.values(this.config.nodes);
-}
 
-Application.prototype.get_warehouses = function(){
-	return _.filter(this.get_nodes(), function(node){
-		return node._diggermodule==='warehouse';
+	var client = Client(function(req, reply){
+		req.internal = true;
+		self.connector(req, reply);
 	})
-}
 
-Application.prototype.get_apps = function(){
-	return _.filter(this.get_nodes(), function(node){
-		return node._diggermodule==='app';
-	})
+	try{
+		var ModuleClass = require(module_path);
+		module = ModuleClass(config, client);
+	}
+	catch (e){
+		throw e;
+	}
+
+	return module;
 }
+*/
