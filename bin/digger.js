@@ -7,7 +7,7 @@
 var program = require('commander');
 var version = require('../package.json').version;
 var path = require('path');
-
+var exec = require('child_process').exec;
 var fs = require('fs');
 
 program
@@ -101,7 +101,7 @@ program
   
 */
 program
-  .command('start [app_root] [service]')
+  .command('node [app_root] [service]')
   .description('run a digger application')
   .action(function(app_root, service){
 
@@ -135,8 +135,10 @@ program
 
 program
   .command('*')
-  .action(function(env){
-    console.log('find out how to display help for a command that is not defined - commander.js help read needed');
+  .action(function(command){
+    exec('digger --help', function(error, result){
+      console.log(result);
+    })
   });
 
 if(process.argv.length<=2){

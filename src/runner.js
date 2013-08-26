@@ -135,9 +135,11 @@ Runner.prototype.boot = function(application_root){
 			*/
 			function(next){
 				async.forEachSeries(self.app.get_warehouses(), function(warehouse, nextwarehouse){
-					console.log('-------------------------------------------');
-					console.dir(warehouse);
-					process.exit();
+					self.bootloader(warehouse.id, function(error, module){
+						console.log('-------------------------------------------');
+						console.log('Warehouse: ' + warehouse.id + ' loaded');
+						nextwarehouse();
+					})
 				}, next)
 			},
 
@@ -147,7 +149,13 @@ Runner.prototype.boot = function(application_root){
 				
 			*/
 			function(next){
-
+				async.forEachSeries(self.app.get_apps(), function(app, nextapp){
+					self.bootloader(app.id, function(error, module){
+						console.log('-------------------------------------------');
+						console.log('App: ' + app.id + ' loaded');
+						nextapp();
+					})
+				}, next)
 			}
 
 		], function(error){
@@ -184,12 +192,9 @@ Runner.prototype.bootloader = function(service, done){
 		return;
 	}
 
-	console.log('-------------------------------------------');
-	console.dir(desc);
-
 	var module = self.builder.compile(desc.module, desc);
 
-	if(module.prepare){
+	if(module && module.prepare){
 		module.prepare(function(error){
 			done(error, module);
 		})

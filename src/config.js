@@ -106,11 +106,10 @@ Config.prototype.add_warehouse = function(config){
 
 Config.prototype.add_app = function(config){
 	config._diggermodule = 'app';
+	config.module = 'app';
 	this.nodes[config.id] = config;
 	this.services = _.extend(this.services, app_services(config));
 }
-
-
 
 Config.prototype.load = function(done){
 	var self = this;

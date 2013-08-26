@@ -22,6 +22,8 @@ var path = require('path');
 var _ = require('lodash');
 var telegraft = require('telegraft');
 var SupplyChain = require('digger-supplychain');
+var utils = require('digger-utils');
+var Warehouse = require('digger-warehouse');
 
 /*
 
@@ -66,9 +68,35 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	var self = this;
 	this.telegraft = telegraft.client(this.hq_endpoints);
 	this.reception_socket = this.telegraft.rpcclient('/reception');
-	this.supplychain = SupplyChain(function(req, reply){
+
+	/*
+	
+		the function via which we make requests to the reception server
+		
+	*/
+	this.reception_fn = function(req, reply){
+		/*
+		
+			this is a very important flag
+
+			it means that because we are running code on the server we are effectively
+			the root user and so can do what we want to our own stack
+
+			req.internal cannot ever be set by the outside because only:
+
+				method
+				headers
+				url
+				body
+
+			are copied from external requests
+			
+		*/
+		req.internal = true;
 		self.reception_socket.send(req, reply);
-	})
+	}
+
+	this.supplychain = SupplyChain(this.reception_fn);
 
 	/*
 	
@@ -88,6 +116,26 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		mount a function on the network 
 
 	*/
+	var server = null;
+
+	/*
+	
+		the http server we mount our apps onto
+
+		this might not be created - only for front end web apps
+		
+	*/
+	var www = null;
+
+	/*
+	
+		the warehouse we store our routes in
+
+		this lets us have multiple routes on one server
+		
+	*/
+	var serverrunner = null;
+
 	this.supplychain.mount_server = function(route, address, handler){
 
 		if(arguments.length<=2){
@@ -106,19 +154,71 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 			otherwise we create it - either from the environment or defaults which increments the port each time
 			
 		*/
-		address = address || 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
+		if(!server){
+			address = address || 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
 
-		var server = self.telegraft.rpcserver({
-			id:route + ':' + process.pid,
-			protocol:'rpc',
-			address:address
+			serverrunner = Warehouse();
+			server = self.telegraft.rpcserver({
+				id:utils.littleid(),
+				protocol:'rpc',
+				address:address
+			})
+
+			server.on('request', function(req, reply){
+				serverrunner(req, reply);
+			})
+		}
+		
+		serverrunner.use(route, function(req, reply){
+			req.headers['x-supplier-route'] = route;
+			handler(req, reply, function(){
+				reply('404:page not found');
+			})
 		})
 
+		/*
+		
+			this announces us to the network
+			
+		*/
 		server.bind(route);
+	}
 
-		server.on('request', function(req, reply){
-			handler(req, reply);
-		})
+	/*
+	
+		return the digger-serve that will host our websites
+		
+	*/
+	this.supplychain.www = function(){
+		if(!www){
+			var Server = require('digger-serve');
+			www = Server();
+
+			var port = (process.env.DIGGER_NODE_PORT || 80);
+
+			www.server.listen(port, function(){
+				console.log('www server listening on port: ' + port);
+			})
+
+			// feed the request down the supplychain
+			www.app.on('digger:request', function(req, reply){
+				console.log('-------------------------------------------');
+				console.log('-------------------------------------------');
+				console.log('APP request');
+				self.reception_fn(req, reply);
+			})
+		}
+
+		return www;
+	}
+
+	this.supplychain.build = _.bind(self.compile, self);
+
+	this.supplychain.filepath = function(filepath){
+		if(filepath.indexOf('/')==0){
+			return filepath;
+		}
+		return path.normalize(self.application_root + '/' + filepath);
 	}
 }
 
@@ -131,29 +231,48 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	if the type is 'code' then we are loading code from the application folder
 	
 */
-ModuleBuilder.prototype.compile = function(module, config){
+ModuleBuilder.prototype.compile = function(module, config, custom_module){
 	var self = this;
 	config = config || {};
 	config.hq_endpoints = this.hq_endpoints;
 
-	var module_path = path.normalize(__dirname + '/modules/' + module + '.js');
+	var module_path = '';
 	
-	/*
+	if(custom_module){
+		module_path = module;
+	}
+	else{
+		module_path = path.normalize(__dirname + '/modules/' + module + '.js');
 	
-		is the module actually code in the digger app
+		/*
 		
-	*/
-	if(module.match(/[\/\.]/)){
-		module_path = path.normalize(this.application_root + '/' + module);
-		if(module_path.indexOf(this.application_root)!=0){
-			throw new Error('error - you cannot load code from above your application: ' + module_path);
+			is the module actually code in the digger app
+			
+		*/
+		if(module.match(/[\/\.]/)){
+			module_path = path.normalize(this.application_root + '/' + module);
+			config.module = module_path;
+			config._custommodule = module_path;
+			if(module_path.indexOf(this.application_root)!=0){
+				throw new Error('error - you cannot load code from above your application: ' + module_path);
+			}
+		}
+
+		/*
+		
+			this means we have custom code but should load it inside of a warehouse module
+			
+		*/
+		if(config._diggermodule){
+			module_path = path.normalize(__dirname + '/modules/' + config._diggermodule + '.js')
 		}
 	}
+	
 
 	if(!fs.existsSync(module_path)){
 		throw new Error(module_path + ' not found');
 	}
-	
+
 	var factory = require(module_path);
 
 	/*
@@ -162,14 +281,5 @@ ModuleBuilder.prototype.compile = function(module, config){
 		from the application codebase
 		
 	*/
-	return factory(config, this.supplychain, function(path, config){
-		/*
-		
-			we are building code from within a module - pass the path as code:
-			
-		*/
-		console.log('-------------------------------------------');
-		console.log('BUILD FROM WITHIN');
-		return self.compile(path, config || {});
-	})
+	return factory(config, this.supplychain);
 }

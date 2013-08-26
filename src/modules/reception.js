@@ -5,7 +5,7 @@ var Reception = require('digger-reception');
 	$digger is a supplychain back onto the network
 	
 */
-module.exports = function(config, supplychain, build){
+module.exports = function(config, $digger){
 
 	/*
 	
@@ -19,7 +19,7 @@ module.exports = function(config, supplychain, build){
 		the backend proxy so we don't have to keep track of servers
 		
 	*/
-	var proxy = supplychain.get_proxy();
+	var proxy = $digger.get_proxy();
 
 	/*
 	
@@ -41,11 +41,10 @@ module.exports = function(config, supplychain, build){
 		
 	*/
 	if(config.router){
-		router = build(config.router);
-		router({test:10}, function(){})
+		router = $digger.build(config.router);
 	}
 
-	supplychain.mount_server('/reception', function(req, reply){
+	$digger.mount_server('/reception', function(req, reply){
 		reception(req, reply);
 	})
 
