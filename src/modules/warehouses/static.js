@@ -6,22 +6,17 @@
 var Static = require('digger-static');
 
 module.exports = function(config, $digger){
-	console.log('-------------------------------------------');
-	console.log('making static');
-	console.dir(config);
 
-	if(config.folder){
-		config.folder = $digger.filepath(config.folder);
+	var staticconfig = config.config || {};
+	if(staticconfig.folder){
+		staticconfig.folder = $digger.filepath(staticconfig.folder);
 	}
 
-	if(config.file){
-		config.file = $digger.filepath(config.file);
+	if(staticconfig.file){
+		staticconfig.file = $digger.filepath(staticconfig.file);
 	}
 
-	console.log('-------------------------------------------');
-	console.dir(config);
-
-	var supplier = Static(config);
+	var supplier = Static(staticconfig);
 
 	return supplier;
 }

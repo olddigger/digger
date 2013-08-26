@@ -3,6 +3,8 @@
 	we boot the given warehouse module
 	
 */
+var path = require('path');
+
 module.exports = function(config, $digger){
 
 	var module = config.module;
@@ -27,12 +29,11 @@ module.exports = function(config, $digger){
 		
 	*/
 	else{
-		var factory = require('./warehouses/' + module);
-		handler = factory(warehouseconfig, $digger);
+		handler = $digger.build(path.normalize(__dirname + '/warehouses/' + module + '.js'), config, true);
 	}
 
 	console.log('-------------------------------------------');
-	console.log('mounting warehouse: ' + config.id);
+	console.log('mounting warehouse: ' + config.id + ' --- ' + module);
 
 	$digger.mount_server(config.id, function(req, reply){
 		handler(req, reply);

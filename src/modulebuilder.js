@@ -74,6 +74,7 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		the function via which we make requests to the reception server
 		
 	*/
+
 	this.reception_fn = function(req, reply){
 		/*
 		
@@ -144,7 +145,8 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		}
 
 		if(!handler){
-			throw new Error('you need to pass a function to mount_server');
+			console.error('you need to pass a function to mount_server');
+			process.exit();
 		}
 
 		/*
@@ -254,7 +256,8 @@ ModuleBuilder.prototype.compile = function(module, config, custom_module){
 			config.module = module_path;
 			config._custommodule = module_path;
 			if(module_path.indexOf(this.application_root)!=0){
-				throw new Error('error - you cannot load code from above your application: ' + module_path);
+				console.error('error - you cannot load code from above your application: ' + module_path);
+				process.exit();
 			}
 		}
 
@@ -270,7 +273,8 @@ ModuleBuilder.prototype.compile = function(module, config, custom_module){
 	
 
 	if(!fs.existsSync(module_path)){
-		throw new Error(module_path + ' not found');
+		console.error(module_path + ' not found');
+		process.exit();
 	}
 
 	var factory = require(module_path);
