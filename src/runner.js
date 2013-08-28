@@ -86,7 +86,6 @@ Runner.prototype.boot = function(application_root){
 			we now loop through making each part of the stack
 			
 		*/
-		console.log('-------------------------------------------');
 		console.log('booting');
 
 		async.series([
@@ -109,8 +108,7 @@ Runner.prototype.boot = function(application_root){
 			*/
 			function(next){
 				self.bootloader('hq', function(error, module){
-					console.log('-------------------------------------------');
-					console.log('HQ loaded');
+					console.log('hq loaded');
 					next();
 				})
 			},
@@ -122,8 +120,7 @@ Runner.prototype.boot = function(application_root){
 			*/
 			function(next){
 				self.bootloader('/reception', function(error, module){
-					console.log('-------------------------------------------');
-					console.log('Reception loaded');
+					console.log('reception loaded');
 					next();
 				})
 			},
@@ -135,9 +132,8 @@ Runner.prototype.boot = function(application_root){
 			*/
 			function(next){
 				async.forEachSeries(self.app.get_warehouses(), function(warehouse, nextwarehouse){
-					self.bootloader(warehouse.id, function(error, module){
-						console.log('-------------------------------------------');
-						console.log('Warehouse: ' + warehouse.id + ' loaded');
+					self.bootloader(warehouse.id, function(error, config){
+						console.log('mounting warehouse: ' + config.id + ' -> ' + config.module);
 						nextwarehouse();
 					})
 				}, next)
@@ -149,10 +145,13 @@ Runner.prototype.boot = function(application_root){
 				
 			*/
 			function(next){
+
 				async.forEachSeries(self.app.get_apps(), function(app, nextapp){
-					self.bootloader(app.id, function(error, module){
-						console.log('-------------------------------------------');
-						console.log('App: ' + app.id + ' loaded');
+					self.bootloader(app.id, function(error, config){
+						console.log('mounting app: ' + config.id + ' -> ' + config.config.document_root);
+						(config.config.domains || []).forEach(function(domain){
+							console.log('  - ' + domain);
+						})
 						nextapp();
 					})
 				}, next)
@@ -196,10 +195,10 @@ Runner.prototype.bootloader = function(service, done){
 
 	if(module && module.prepare){
 		module.prepare(function(error){
-			done(error, module);
+			done(error, desc);
 		})
 	}
 	else{
-		done(null, module);
+		done(null, desc);
 	}
 }

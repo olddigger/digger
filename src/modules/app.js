@@ -8,8 +8,6 @@ var fs = require('fs');
 var path = require('path');
 
 module.exports = function(config, $digger){
-	console.log('-------------------------------------------');
-	console.log('running app');
 	
 	if(config.document_root){
 		config.document_root = $digger.filepath(config.document_root);
@@ -30,10 +28,13 @@ module.exports = function(config, $digger){
 		domains = [domains];
 	}
 
+	/*
+
 	app.use(function(req, res, next){
-		req.headers['x-digger-app'] = config.id;
+		req.website = config.id;
 		next();
 	})
+*/
 
 	/*
 	
@@ -54,9 +55,11 @@ module.exports = function(config, $digger){
 	}
 
 	function build_middleware(route, modulename, middleware_config){
-		var middleware = $digger.build(modulename, middleware_config, true);
+		var middleware = $digger.build(modulename, {
+			config:middleware_config
+		}, true);
 		app.use(route, middleware);
-		console.log('website module: ' + route + ' --- ' + modulename);
+		console.log('website module: ' + route + ' -> ' + modulename);
 	}
 
 	for(var route in middleware){
@@ -67,6 +70,8 @@ module.exports = function(config, $digger){
 			}
 		}
 		var middleware_config = middleware_settings.config || {};
+		middleware_config.id = route;
+		
 		var module = middleware_settings.module;
 
 		if(!module){
@@ -102,7 +107,7 @@ module.exports = function(config, $digger){
 			
 		*/
 		else{
-			build_middleware(route, path.normalize(__dirname + '/middleware/' + module + '.js'), middleware_config);
+			build_middleware(route, 'middleware/' + module, middleware_config);
 		}
 	}
 	

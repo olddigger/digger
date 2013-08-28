@@ -40,7 +40,6 @@
     "digger-client": "~0.0.3",
     "async": "~0.2.9",
     "digger-utils": "~1.0.4",
-    "digger-warehouse": "~0.1.0",
-    "digger-supplychain": "0.0.12"
+    "digger-warehouse": "~0.1.0"
   }
 }

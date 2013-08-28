@@ -20,6 +20,7 @@ module.exports = function(config, $digger){
 		
 	*/
 	var proxy = $digger.get_proxy();
+	var logger = $digger.get_logger();
 
 	/*
 	
@@ -29,10 +30,10 @@ module.exports = function(config, $digger){
 		
 	*/
 	function run_request(req, reply){
-		console.log('-------------------------------------------');
-		console.log('sending');
-		console.dir(req);
-		proxy.send(req.url, req, reply);
+		logger.request(req);
+		proxy.send(req.url, req, function(error, answer){
+			reply(error, answer);
+		});
 	}
 
 	/*
@@ -41,7 +42,14 @@ module.exports = function(config, $digger){
 		
 	*/
 	if(config.router){
-		router = $digger.build(config.router);
+		if(typeof(config.router)==='string'){
+			config.router = {
+				module:config.router,
+				config:{}
+			}
+		}
+		console.log('mounting reception router: ' + config.router.module);
+		router = $digger.build($digger.filepath(config.router.module), config.router.config, true);
 	}
 
 	$digger.mount_server('/reception', function(req, reply){
@@ -50,15 +58,34 @@ module.exports = function(config, $digger){
 
 	/*
 	
+		there is a contract resolving
+		
+	*/
+	reception.on('digger:reception', function(req, reply){
+		logger.reception(req);
+	})
+
+	/*
+	
 		we have a backend request to deal with
 		
 	*/
-	reception.on('request', function(req, reply){
+	reception.on('digger:request', function(req, reply){
 		if(router){
-			console.log('-------------------------------------------');
-			console.log('routing');
-			console.dir(req.url);
-			router(req, reply, run_request);
+			router(req, function(error, answer){
+				/*
+	
+					the custom router has taken matters into it's own hands
+					
+				*/
+				if(error){
+					logger.error(req, error);
+				}
+				reply(error, answer);
+			}, function(){
+				// this must be a function with no args as it is the next() for the router
+				run_request(req, reply);
+			});
 		}
 		else{
 			run_request(req, reply);

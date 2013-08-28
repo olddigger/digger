@@ -70,7 +70,8 @@ function Config(folder){
 	this.config_path = path.normalize(this.folder + '/digger.yaml');
 
 	if(!fs.existsSync(this.config_path)){
-		throw new Error(this.config_path + ' does not exist');
+		console.error(this.config_path + ' does not exist');
+		process.exit();
 	}
 
 	this.nodes = {};
@@ -96,18 +97,26 @@ Config.prototype.filepath = function(pathname){
 }
 
 Config.prototype.add_warehouse = function(config){
-	config._diggermodule = config.id=='/reception' ? 'reception' : 'warehouse';
-	if(config._diggermodule=='reception'){
-		config.module = 'reception';
+	var _diggermodule = config.id=='/reception' ? 'reception' : 'warehouse';
+	if(_diggermodule=='reception'){
+		config = {
+			id:'/reception',
+			module:'reception',
+			config:config
+		}
 	}
+	config._diggermodule = _diggermodule;
 	this.nodes[config.id] = config;
 	this.services = _.extend(this.services, warehouse_services(config));
 }
 
 Config.prototype.add_app = function(config){
-	config._diggermodule = 'app';
-	config.module = 'app';
-	this.nodes[config.id] = config;
+	this.nodes[config.id] = {
+		id:config.id,
+		module:'app',
+		config:config,
+		_diggermodule:'app'
+	}
 	this.services = _.extend(this.services, app_services(config));
 }
 

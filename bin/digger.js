@@ -11,7 +11,7 @@ var exec = require('child_process').exec;
 var fs = require('fs');
 
 program
-  .option('-e, --env <string>', 'value for process.env.NODE_ENV', 'production')
+  .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
   .version(version)
 
 program
@@ -62,11 +62,13 @@ program
   
 */
 program
-  .command('run [app_root] [port]')
+  .command('run [port]')
   .description('run a digger application')
-  .action(function(app_root, port){
+  .action(function(port){
 
-  	if(!app_root){
+    var app_root = program.dir;
+
+  	if(!app_root || app_root === '.'){
   		app_root = process.cwd();
   	}
     else if(app_root.indexOf('/')!=0){
@@ -101,16 +103,13 @@ program
   
 */
 program
-  .command('node [app_root] [service]')
-  .description('run a digger application')
-  .action(function(app_root, service){
+  .command('node [service]')
+  .description('run a single named service')
+  .action(function(service){
 
-    if(!service){
-      service = app_root;
-      app_root = null;
-    }
+    var app_root = program.dir;
 
-    if(!app_root){
+    if(!app_root || app_root === '.'){
       app_root = process.cwd();
     }
     else if(app_root.indexOf('/')!=0){

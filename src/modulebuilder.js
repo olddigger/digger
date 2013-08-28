@@ -21,9 +21,11 @@ var util = require('util');
 var path = require('path');
 var _ = require('lodash');
 var telegraft = require('telegraft');
-var SupplyChain = require('digger-supplychain');
+
 var utils = require('digger-utils');
 var Warehouse = require('digger-warehouse');
+var Client = require('digger-client');
+var Logger = require('./logger');
 
 /*
 
@@ -50,6 +52,8 @@ function ModuleBuilder(application_root){
 	// used for when we boot the whole stack inline
 	this.next_port = 8793;
 
+	this.logger = Logger();
+
 	/*
 	
 		the only module we do not create a supplychain for is the telegraft hq
@@ -75,7 +79,29 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		
 	*/
 
-	this.reception_fn = function(req, reply){
+	this.socket_pipe = function(req, reply){
+		self.reception_socket.send(req, reply);
+	}
+
+	// a request that has come from the outside
+	this.external_handler = function(req, reply){
+
+		/*
+		
+			make double sure there are no other properties creeping in
+			
+		*/
+		self.socket_pipe({
+			method:req.method,
+			url:req.url,
+			headers:req.headers,
+			body:req.body
+		}, reply);
+
+	}
+
+	// a request that has originated from server side code
+	this.internal_handler = function(req, reply){
 		/*
 		
 			this is a very important flag
@@ -94,10 +120,19 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 			
 		*/
 		req.internal = true;
-		self.reception_socket.send(req, reply);
+		self.socket_pipe(req, reply);
 	}
 
-	this.supplychain = SupplyChain(this.reception_fn);
+	/*
+	
+		create the supplychain we will give to internal code
+
+		we pipe requests via the internal handler which gives them privilaged access
+
+		for external requests - we pipe from the app to external_handler (below)
+		
+	*/
+	this.supplychain = Client(this.internal_handler);
 
 	/*
 	
@@ -111,6 +146,17 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	this.supplychain.get_proxy = function(){
 		return self.telegraft.rpcproxy();
 	}
+
+	this.supplychain.get_logger = function(){
+		return self.logger;
+	}
+
+	/*
+	
+		assign the radio so functions can do realtime
+		
+	*/
+	this.supplychain.radio = this.telegraft.radio;
 
 	/*
 	
@@ -160,6 +206,7 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 			address = address || 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
 
 			serverrunner = Warehouse();
+			
 			server = self.telegraft.rpcserver({
 				id:utils.littleid(),
 				protocol:'rpc',
@@ -204,10 +251,20 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 
 			// feed the request down the supplychain
 			www.app.on('digger:request', function(req, reply){
-				console.log('-------------------------------------------');
-				console.log('-------------------------------------------');
-				console.log('APP request');
-				self.reception_fn(req, reply);
+
+				/*
+				
+					it is very important that we pass to external_handler here
+
+					this passes ONLY:
+
+						method
+						url
+						headers
+						body
+					
+				*/
+				self.external_handler(req, reply);
 			})
 		}
 
@@ -233,15 +290,19 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	if the type is 'code' then we are loading code from the application folder
 	
 */
-ModuleBuilder.prototype.compile = function(module, config, custom_module){
+ModuleBuilder.prototype.compile = function(module, moduleconfig, custom_module){
 	var self = this;
-	config = config || {};
-	config.hq_endpoints = this.hq_endpoints;
+	moduleconfig = moduleconfig || {};
+	config = moduleconfig.config || {};	
 
 	var module_path = '';
-	
+
 	if(custom_module){
 		module_path = module;
+
+		if(module.match(/[\/\.]/) && module.indexOf('/')!=0){
+			module_path = path.normalize(__dirname + '/modules/' + module + '.js');
+		}
 	}
 	else{
 		module_path = path.normalize(__dirname + '/modules/' + module + '.js');
@@ -253,12 +314,14 @@ ModuleBuilder.prototype.compile = function(module, config, custom_module){
 		*/
 		if(module.match(/[\/\.]/)){
 			module_path = path.normalize(this.application_root + '/' + module);
-			config.module = module_path;
 			config._custommodule = module_path;
 			if(module_path.indexOf(this.application_root)!=0){
 				console.error('error - you cannot load code from above your application: ' + module_path);
 				process.exit();
 			}
+		}
+		else{
+			config._systemmodule = module;
 		}
 
 		/*
@@ -266,8 +329,8 @@ ModuleBuilder.prototype.compile = function(module, config, custom_module){
 			this means we have custom code but should load it inside of a warehouse module
 			
 		*/
-		if(config._diggermodule){
-			module_path = path.normalize(__dirname + '/modules/' + config._diggermodule + '.js')
+		if(moduleconfig._diggermodule){
+			module_path = path.normalize(__dirname + '/modules/' + moduleconfig._diggermodule + '.js')
 		}
 	}
 	
@@ -285,5 +348,13 @@ ModuleBuilder.prototype.compile = function(module, config, custom_module){
 		from the application codebase
 		
 	*/
-	return factory(config, this.supplychain);
+	var pass_config = _.extend({
+		id:moduleconfig.id,
+		hq_endpoints:this.hq_endpoints
+	}, config);
+
+	// remove this or we get into a loop
+	delete(pass_config._diggermodule);
+	
+	return factory(pass_config, this.supplychain);
 }
