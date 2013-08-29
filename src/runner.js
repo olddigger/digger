@@ -165,6 +165,20 @@ Runner.prototype.boot = function(application_root){
 	this.load(application_root);
 }
 
+Runner.prototype.build = function(application_root){
+	var self = this;
+	
+	this.on('loaded', function(){
+		self.bootloader(service, function(error, module){
+			console.log('-------------------------------------------');
+			console.log('module running');
+		})
+	})
+
+	this.load(application_root);
+}
+
+
 /*
 
 	run a single part of the stack

@@ -23,9 +23,12 @@ var _ = require('lodash');
 var telegraft = require('telegraft');
 
 var utils = require('digger-utils');
-var Warehouse = require('digger-warehouse');
+
 var Client = require('digger-client');
 var Logger = require('./logger');
+
+var RPCServer = require('./rpcserver');
+var WebServer = require('./webserver');
 
 /*
 
@@ -80,7 +83,11 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	*/
 
 	this.socket_pipe = function(req, reply){
-		self.reception_socket.send(req, reply);
+
+		self.reception_socket.send(req, function(error, answer){
+
+			reply(error, answer)
+		});
 	}
 
 	// a request that has come from the outside
@@ -158,118 +165,14 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	*/
 	this.supplychain.radio = this.telegraft.radio;
 
-	/*
-	
-		mount a function on the network 
-
-	*/
-	var server = null;
-
-	/*
-	
-		the http server we mount our apps onto
-
-		this might not be created - only for front end web apps
-		
-	*/
-	var www = null;
-
-	/*
-	
-		the warehouse we store our routes in
-
-		this lets us have multiple routes on one server
-		
-	*/
-	var serverrunner = null;
-
-	this.supplychain.mount_server = function(route, address, handler){
-
-		if(arguments.length<=2){
-			handler = address;
-			address = null;
-		}
-
-		if(!handler){
-			console.error('you need to pass a function to mount_server');
-			process.exit();
-		}
-
-		/*
-		
-			the address can be passed up by the module (in the case it is binding multiple places)
-
-			otherwise we create it - either from the environment or defaults which increments the port each time
-			
-		*/
-		if(!server){
-			address = address || 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
-
-			serverrunner = Warehouse();
-			
-			server = self.telegraft.rpcserver({
-				id:utils.littleid(),
-				protocol:'rpc',
-				address:address
-			})
-
-			server.on('request', function(req, reply){
-				serverrunner(req, reply);
-			})
-		}
-		
-		serverrunner.use(route, function(req, reply){
-			req.headers['x-supplier-route'] = route;
-			handler(req, reply, function(){
-				reply('404:page not found');
-			})
-		})
-
-		/*
-		
-			this announces us to the network
-			
-		*/
-		server.bind(route);
-	}
+	this.supplychain.rpc_server = RPCServer(self);
 
 	/*
 	
 		return the digger-serve that will host our websites
 		
 	*/
-	this.supplychain.www = function(){
-		if(!www){
-			var Server = require('digger-serve');
-			www = Server();
-
-			var port = (process.env.DIGGER_NODE_PORT || 80);
-
-			www.server.listen(port, function(){
-				console.log('www server listening on port: ' + port);
-			})
-
-			// feed the request down the supplychain
-			www.app.on('digger:request', function(req, reply){
-
-				/*
-				
-					it is very important that we pass to external_handler here
-
-					this passes ONLY:
-
-						method
-						url
-						headers
-						body
-					
-				*/
-				self.external_handler(req, reply);
-			})
-		}
-
-		return www;
-	}
+	this.supplychain.www = WebServer(self);
 
 	this.supplychain.build = _.bind(self.compile, self);
 

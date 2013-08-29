@@ -47,16 +47,6 @@ module.exports = function(options){
     logger(parts);
   }
 
-  function reception_logger(req){
-    var parts = [
-      new Date().getTime(),
-      'contract',
-      req.headers['x-contract-type'],
-      (req.body || []).length
-    ]
-    logger(parts);
-  }
-  
   function provision_logger(routes, resource){
     var parts = [
       new Date().getTime(),
@@ -67,30 +57,34 @@ module.exports = function(options){
     logger(parts);
   }
 
-  function action_logger(type, req){
+  function action_logger(type, req, resultcount){
 
     var data = '';
 
     if(type==='select'){
       data = (req.selector || {}).string;
-      if(req.body.length>0){
-        data += ' : context ' + req.body.length;
-      }
     }
     else{
       data = (req.body || []).length;
     }
 
+    var body = req.body || [];
+    var tag = req.body.length>0 ? (req.body[0]._digger ? req.body[0]._digger.tag : '') : '';
+
     var parts = [
       new Date().getTime(),
       'action:' + type,
       req.headers['x-supplier-route'] + req.url,
-      data
+      body.length + ' ' + tag + ' -> ' + data + ' -> ' + resultcount
     ]
+
     logger(parts);
   }
 
   function request_logger(req){
+    if(req.headers['x-reception']){
+      return;
+    }
     var parts = [
       new Date().getTime(),
       'packet',

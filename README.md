@@ -14,6 +14,8 @@ navigate to a folder that contains a digger.yml file and:
 
 will bring up the stack on port 80
 
+test
+
 ## example digger.yaml
 
 ```yaml

@@ -21,6 +21,43 @@ program
     console.log(version)
   })
 
+program
+  .command('build')
+  .description('compile this digger application into a Quarryfile')
+  .action(function(port){
+
+    var app_root = program.dir;
+
+    if(!app_root || app_root === '.'){
+      app_root = process.cwd();
+    }
+    else if(app_root.indexOf('/')!=0){
+      app_root = path.normalize(process.cwd() + '/' + app_root);
+    }
+
+    if(!port){
+      port = 80;
+    }
+    
+    var Runner = require('../src/runner');
+    var runner = new Runner('development');
+
+    runner.on('error', function(error){
+      console.error(error);
+      process.exit();
+    })
+        
+    runner.on('started', function(){
+      console.log('application is running');
+    })
+    
+    runner.boot(app_root);
+
+    
+    
+  })
+
+
 /*
 
   this boots a digger stack in test mode

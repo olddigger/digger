@@ -1,4 +1,5 @@
 var Reception = require('digger-reception');
+var utils = require('digger-utils');
 
 /*
 
@@ -13,6 +14,8 @@ module.exports = function(config, $digger){
 		
 	*/
 	var reception = Reception(config);
+
+	var id = utils.littleid();
 
 	/*
 	
@@ -32,7 +35,10 @@ module.exports = function(config, $digger){
 	function run_request(req, reply){
 		logger.request(req);
 		proxy.send(req.url, req, function(error, answer){
-			reply(error, answer);
+			process.nextTick(function(){
+				reply(error, answer);	
+			})
+			
 		});
 	}
 
@@ -52,8 +58,26 @@ module.exports = function(config, $digger){
 		router = $digger.build($digger.filepath(config.router.module), config.router.config, true);
 	}
 
-	$digger.mount_server('/reception', function(req, reply){
-		reception(req, reply);
+	var rpcserver = $digger.rpc_server('/reception');
+
+	/*
+	
+		the main entry point for anything coming from a web application
+		
+	*/
+	rpcserver.use(function(req, res, next){
+
+		// this is a hack only for when we are running everything is one process (i.e. digger run)
+		// that is because our rpcserver is the same warehouse for the whole stack
+		// and requests will loop through here repeatedly unless passed onto the further handlers down the line
+		if(req.headers['x-reception']){
+			next();
+			return;
+		}
+		else{
+			req.headers['x-reception'] = id;
+			reception(req, res);
+		}
 	})
 
 	/*
@@ -71,25 +95,30 @@ module.exports = function(config, $digger){
 		
 	*/
 	reception.on('digger:request', function(req, reply){
+		
 		if(router){
 			router(req, function(error, answer){
-				/*
-	
-					the custom router has taken matters into it's own hands
-					
-				*/
+
+				// the custom router has taken matters into it's own hands
 				if(error){
 					logger.error(req, error);
 				}
-				reply(error, answer);
+				process.nextTick(function(){
+					reply(error, answer);	
+				})
+				
 			}, function(){
-				// this must be a function with no args as it is the next() for the router
-				run_request(req, reply);
+				process.nextTick(function(){
+					// this must be a function with no args as it is the next() for the router
+					run_request(req, reply);
+				})
+				
 			});
 		}
 		else{
 			run_request(req, reply);
 		}
+
 	})
 
 	return reception;
