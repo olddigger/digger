@@ -28,11 +28,26 @@ module.exports = function(options){
   }
 
   function reception_logger(req){
+
+    var reqs = (req.body || []).map(function(req){
+      var headers = req.headers || {};
+      if(headers['x-json-selector']){
+        var selector = headers['x-json-selector'];
+        return selector.string;
+      }
+      else{
+        return null;
+      }
+    }).filter(function(req){
+      return req!==null;
+    })
+
     var parts = [
       new Date().getTime(),
       'contract',
       req.headers['x-contract-type'],
-      (req.body || []).length
+      (req.body || []).length,
+      reqs.join(' ')
     ]
     logger(parts);
   }

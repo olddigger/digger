@@ -43,12 +43,14 @@ function ModuleBuilder(application_root){
 	/*
 	
 		where is the hq running
-		
-	*/
+
+	*/	
+	
 	this.hq_endpoints = {
 		server:'tcp://' + (process.env.DIGGER_HQ_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_HQ_SERVER_PORT || 8791),
 		radio:'tcp://' + (process.env.DIGGER_HQ_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_HQ_RADIO_PORT || 8792)
 	}
+	
 
 	this.application_root = application_root;
 
@@ -83,11 +85,12 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	*/
 
 	this.socket_pipe = function(req, reply){
-
+	
 		self.reception_socket.send(req, function(error, answer){
 
 			reply(error, answer)
 		});
+	
 	}
 
 	// a request that has come from the outside
@@ -163,7 +166,7 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		assign the radio so functions can do realtime
 		
 	*/
-	this.supplychain.radio = this.telegraft.radio;
+	//this.supplychain.radio = this.telegraft.radio;
 
 	this.supplychain.rpc_server = RPCServer(self);
 

@@ -11,10 +11,7 @@ var utils = require('digger-utils');
 module.exports = function(modulebuilder){
 	var self = modulebuilder;
 
-	var serverrunner = null;
-	var server = null;
-
-	return function(route, address){
+	return function(route){
 
 		/*
 		
@@ -23,21 +20,16 @@ module.exports = function(modulebuilder){
 			otherwise we create it - either from the environment or defaults which increments the port each time
 			
 		*/
-		if(!server){
-			address = address || 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
 
-			serverrunner = Warehouse();
-			
-			server = self.telegraft.rpcserver({
-				id:utils.littleid(),
-				protocol:'rpc',
-				address:address
-			})
+		var address = 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_NODE_PORT || self.next_port++);
 
-			server.on('request', function(req, reply){
-				serverrunner(req, reply);
-			})
-		}
+		var server = self.telegraft.rpcserver({
+			id:utils.littleid(),
+			protocol:'rpc',
+			address:address
+		})
+
+		console.log('binding telegraft server: ' + route + ' -> ' + address);
 
 		/*
 		
@@ -46,6 +38,6 @@ module.exports = function(modulebuilder){
 		*/
 		server.bind(route);
 
-		return serverrunner;
+		return server;
 	}
 }

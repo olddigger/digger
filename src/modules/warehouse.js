@@ -20,16 +20,18 @@ module.exports = function(config, $digger){
 	}
 	
 	var handler = config._custommodule ? 
+
+		// the warehouse is some user code
 		$digger.build(config._custommodule, {
 			module:config._custommodule,
 			config:config
 		}, true) : 
+
+		// the warehouse is a digger one
 		$digger.build('warehouses/' + config._systemmodule, {
 			module:config._custommodule,
 			config:config
 		}, true);
-
-	var logger = $digger.get_logger();
 
 	/*
 	
@@ -37,6 +39,8 @@ module.exports = function(config, $digger){
 		
 	*/
 	if(typeof(handler.on)==='function'){
+
+		var logger = $digger.get_logger();
 
 		/*
 		
@@ -46,30 +50,29 @@ module.exports = function(config, $digger){
 		handler.on('digger:action', function(name, req, resultcount){
 			logger.action(name, req, resultcount);
 		})
-/*
-		handler.on('digger:provision', function(routes, resource){
-			logger.provision(routes, resource);
-		})
-*/		
+		
 	}
 
-	var rpcserver = $digger.rpc_server(config.id);
+	/*
 	
-	rpcserver.use(config.id, function(req, reply){
-		req.headers['x-supplier-route'] = config.id;
-
-		process.nextTick(function(){
-			console.dir(req);
-			handler(req, function(error, answer){
-				//console.log('-------------------------------------------');
-				//console.dir(error);
-				//console.dir(answer);
-				reply(error, answer);
-			});
-		})
+		mount the warehouse on the network
 		
-	})
+	*/
+	var route = config.id;
+	var server = $digger.rpc_server(route);
 
+	server.on('request', function(req, reply){
+		req.headers = req.headers || {};
+		req.headers['x-supplier-route'] = route;
+		req.url = req.url.substr(route.length);
+		process.nextTick(function(){
+			handler(req, function(error, answer){
+				reply(error, answer);
+			})
+		})
+
+	})
+	
 	return handler;
 
 }

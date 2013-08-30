@@ -33,7 +33,6 @@ module.exports = function(config, $digger){
 		
 	*/
 	function run_request(req, reply){
-		logger.request(req);
 		proxy.send(req.url, req, function(error, answer){
 			process.nextTick(function(){
 				reply(error, answer);	
@@ -58,27 +57,16 @@ module.exports = function(config, $digger){
 		router = $digger.build($digger.filepath(config.router.module), config.router.config, true);
 	}
 
-	var rpcserver = $digger.rpc_server('/reception');
-
 	/*
 	
 		the main entry point for anything coming from a web application
 		
 	*/
-	rpcserver.use(function(req, res, next){
+	var server = $digger.rpc_server('/reception');
 
-		// this is a hack only for when we are running everything is one process (i.e. digger run)
-		// that is because our rpcserver is the same warehouse for the whole stack
-		// and requests will loop through here repeatedly unless passed onto the further handlers down the line
-		if(req.headers['x-reception']){
-			next();
-			return;
-		}
-		else{
-			req.headers['x-reception'] = id;
-			reception(req, res);
-		}
-	})
+	server.on('request', function(req, reply){
+		reception(req, reply);
+	});
 
 	/*
 	
