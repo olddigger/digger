@@ -65,11 +65,11 @@ module.exports = function(config, $digger){
 		req.headers = req.headers || {};
 		req.headers['x-supplier-route'] = route;
 		req.url = req.url.substr(route.length);
-		process.nextTick(function(){
-			handler(req, function(error, answer){
-				reply(error, answer);
-			})
+		
+		handler(req, function(error, answer){
+			reply(error, answer);
 		})
+		
 
 	})
 	

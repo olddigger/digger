@@ -28,7 +28,6 @@ module.exports = function(options){
   }
 
   function reception_logger(req){
-
     var reqs = (req.body || []).map(function(req){
       var headers = req.headers || {};
       if(headers['x-json-selector']){
@@ -73,7 +72,6 @@ module.exports = function(options){
   }
 
   function action_logger(type, req, resultcount){
-
     var data = '';
 
     if(type==='select'){
