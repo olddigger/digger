@@ -1,68 +1,7 @@
 #!/usr/bin/env node
 
-/**
- * Module dependencies.
- */
-
-var program = require('commander');
-var version = require('../package.json').version;
-var path = require('path');
-var exec = require('child_process').exec;
-var fs = require('fs');
-
-program
-  .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
-  .version(version)
-
-program
-  .command('version')
-  .description('display the current version number')
-  .action(function(){
-    console.log(version)
-  })
-
-program
-  .command('build')
-  .description('compile this digger application into a Quarryfile')
-  .action(function(port){
-
-    var app_root = program.dir;
-
-    if(!app_root || app_root === '.'){
-      app_root = process.cwd();
-    }
-    else if(app_root.indexOf('/')!=0){
-      app_root = path.normalize(process.cwd() + '/' + app_root);
-    }
-
-    if(!port){
-      port = 80;
-    }
-    
-    var Runner = require('../src/runner');
-    var runner = new Runner('development');
-
-    runner.on('error', function(error){
-      console.error(error);
-      process.exit();
-    })
-        
-    runner.on('started', function(){
-      console.log('application is running');
-    })
-    
-    runner.boot(app_root);
-
-    
-    
-  })
-
 
 /*
-
-  this boots a digger stack in test mode
-  this means it will not boot any database services
-  instead assuming they are running locally
 
     var env = {
 
@@ -88,96 +27,252 @@ program
       
     }
 
-  also - it boots all warehouses and websites into this single process
-  and does not detatch the process
-
-  this makes
-
-    digger test .
-
-  a good command for booting a stack to see if it is behaving
+ 
   
 */
-program
-  .command('run [port]')
-  .description('run a digger application')
-  .action(function(port){
 
-    var app_root = program.dir;
+/**
+ * Module dependencies.
+ */
 
-  	if(!app_root || app_root === '.'){
-  		app_root = process.cwd();
-  	}
-    else if(app_root.indexOf('/')!=0){
-      app_root = path.normalize(process.cwd() + '/' + app_root);
-    }
+var program = require('commander');
+var version = '1.1.8';
+var fs = require('fs');
+var path = require('path');
+var exec = require('child_process').exec;
+var Tools = require('../src/tools');
 
-    if(!port){
-      port = 80;
-    }
-    
-    var Runner = require('../src/runner');
-    var runner = new Runner('development');
+var tools = Tools(program);
 
-    runner.on('error', function(error){
-      console.error(error);
-      process.exit();
-    })
-        
-    runner.on('started', function(){
-      console.log('application is running');
-    })
-    
-    runner.boot(app_root);
 
-    
-    
-  })
+
+
 
 /*
 
-  start an individually named service from the stack
+  ----------------------------------------------------------------------------------  
+
+
+  HQ
+
+
+  ----------------------------------------------------------------------------------
+  
+*/
+
+function make_hq(){
+  var HQ = require('../src/hq');
+
+  return HQ(tools);
+}
+
+
+
+
+/*
+
+  ----------------------------------------------------------------------------------  
+
+
+  RECEPTION
+
+
+  ----------------------------------------------------------------------------------
+  
+*/
+
+function make_reception(){
+  var Reception = require('../src/reception');
+
+  return Reception(tools);
+}
+
+/*
+
+  ----------------------------------------------------------------------------------  
+
+
+  WAREHOUSE
+
+
+  ----------------------------------------------------------------------------------
+  
+*/
+
+function make_warehouse(id){
+
+  var Warehouse = require('../src/warehouse');
+
+  return Warehouse(id, tools);
+
+}
+
+
+/*
+
+  ----------------------------------------------------------------------------------  
+
+
+  WWW
+
+
+  ----------------------------------------------------------------------------------
+  
+*/
+function make_app(id){
+  var App = require('../src/app');
+
+  return App(id, tools);
+}
+
+
+
+
+/*
+
+  CLI proper
   
 */
 program
-  .command('node [service]')
-  .description('run a single named service')
-  .action(function(service){
+  .option('-b, --built', 'prevent the build from happening in a multi-node boot')
+  .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
+  .option('-s, --server <string>', 'the endpoint for the HQ server')
+  .option('-r, --radio <string>', 'the endpoint for the HQ radio')
+  .version(version)
 
-    var app_root = program.dir;
+program
+  .command('version')
+  .description('display the current version number')
+  .action(function(){
+    console.log(version)
+  })
 
-    if(!app_root || app_root === '.'){
-      app_root = process.cwd();
-    }
-    else if(app_root.indexOf('/')!=0){
-      app_root = path.normalize(process.cwd() + '/' + app_root);
-    }
 
-    var Runner = require('../src/runner');
-    var runner = new Runner('development');
 
-    runner.on('error', function(error){
-      console.error(error);
-      process.exit();
-    })
+program
+  .command('build')
+  .description('process the digger.yaml file')
+  .action(function(){
 
-    runner.on('started', function(){
-      console.log('service is running');
+    tools.dobuild();
+
+  })
+
+
+program
+  .command('run')
+  .description('run the digger app')
+  .action(function(){
+
+    console.log('');
+    console.log('   digger stack v' + version);
+
+    tools.runbuild(function(){
+      
+      make_hq();
+      make_reception();
+      make_warehouse();
+      make_app();
+
     })
     
-    runner.start(app_root, service);
+
+  })
+
+program
+  .command('hq')
+  .description('run the digger hq node')
+  .action(function(){
+
+    console.log('');
+    console.log('   digger hq v' + version);
+
+    tools.runbuild(function(){
+      make_hq();
+    })
+    
+
+  })
+
+program
+  .command('reception')
+  .description('run the digger reception node')
+  .action(function(){
+
+    console.log('');
+    console.log('   digger reception v' + version);
+
+    tools.runbuild(function(){
+      make_reception();
+    })
+    
+
+  })
+
+program
+  .command('app <app_id>')
+  .description('run a digger app node')
+  .action(function(app_id){
+
+    console.log('');
+    console.log('   digger app v' + version);
+
+    tools.runbuild(function(){
+      make_app(app_id);
+    })
+    
+
+  })
+
+program
+  .command('apps')
+  .description('run all digger app nodes')
+  .action(function(){
+
+    console.log('');
+    console.log('   digger apps v' + version);
+
+    tools.runbuild(function(){
+      make_app();
+    })
+    
+
+  })
+
+program
+  .command('warehouse <warehouse_id>')
+  .description('run a digger warehouse node')
+  .action(function(warehouse_id){
+
+    console.log('');
+    console.log('   digger warehouse v' + version);
+
+    tools.runbuild(function(){
+      make_warehouse(warehouse_id);
+    })
+    
+
+  })
+
+program
+  .command('warehouses')
+  .description('run all digger warehouse nodes')
+  .action(function(){
+
+    console.log('');
+    console.log('   digger warehousess v' + version);
+
+    tools.runbuild(function(){
+      make_warehouse();
+    })
+    
 
   })
 
 program
   .command('*')
   .action(function(command){
-    exec('digger --help', function(error, result){
-      console.log(result);
-    })
+    
   });
 
-if(process.argv.length<=2){
-  process.argv[2] = '--help';
-}
 program.parse(process.argv);

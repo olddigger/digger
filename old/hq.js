@@ -5,9 +5,9 @@ var telegraft = require('telegraft');
 	the main HQ is a telegraft server
 	
 */
-module.exports = function(config){
+module.exports = function(endpoints){
 
-	var hq = telegraft.server(config.hq_endpoints);
+	var hq = telegraft.server(endpoints);
 
 	return hq;
 }

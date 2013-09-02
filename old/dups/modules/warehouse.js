@@ -61,14 +61,32 @@ module.exports = function(config, $digger){
 	var route = config.id;
 	var server = $digger.rpc_server(route);
 
-	server.on('request', function(req, reply){
+	server.on('request', function(req, reply, connection){
+
+		
+		var requestid = connection.requestid;
+
+
 		req.headers = req.headers || {};
 		req.headers['x-supplier-route'] = route;
+		req.headers['x-json-connection'] = connection;
 		req.url = req.url.substr(route.length);
-		
-		handler(req, function(error, answer){
-			reply(error, answer);
+
+		process.nextTick(function(){
+					console.log('-------------------------------------------');
+		console.log('IN: ' + requestid);
+
+			handler(req, function(error, answer){
+				console.log('-------------------------------------------');
+				console.log('OUT: ' + requestid);
+				process.nextTick(function(){
+					reply(error, answer);	
+				})
+				
+			})	
 		})
+		
+
 		
 
 	})

@@ -8,7 +8,6 @@ var Static = require('digger-static');
 module.exports = function(config, $digger){
 
 	var staticconfig = config || {};
-
 	if(staticconfig.folder){
 		staticconfig.folder = $digger.filepath(staticconfig.folder);
 	}
@@ -17,5 +16,7 @@ module.exports = function(config, $digger){
 		staticconfig.file = $digger.filepath(staticconfig.file);
 	}
 
-	return Static(staticconfig);
+	var supplier = Static(staticconfig);
+
+	return supplier;
 }

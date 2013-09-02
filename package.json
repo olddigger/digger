@@ -23,7 +23,8 @@
   },
   "devDependencies": {
     "chai": "*",
-    "mocha": "*"
+    "mocha": "*",
+    "memwatch": "~0.2.2"
   },
   "dependencies": {
     "commander": "~2.0.0",

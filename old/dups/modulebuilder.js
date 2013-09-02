@@ -27,9 +27,6 @@ var utils = require('digger-utils');
 var Client = require('digger-client');
 var Logger = require('./logger');
 
-var RPCServer = require('./rpcserver');
-var WebServer = require('./webserver');
-
 /*
 
 	the generic bootloader for a part of the digger network
@@ -51,31 +48,27 @@ function ModuleBuilder(application_root){
 		radio:'tcp://' + (process.env.DIGGER_HQ_HOST || '127.0.0.1') + ':' + (process.env.DIGGER_HQ_RADIO_PORT || 8792)
 	}
 	
-
+	this.telegraft = telegraft.client(this.hq_endpoints);
 	this.application_root = application_root;
 
 	// used for when we boot the whole stack inline
 	this.next_port = 8793;
 
 	this.logger = Logger();
-
-	/*
 	
-		the only module we do not create a supplychain for is the telegraft hq
-		
-	*/
-	if(this.type!='hq'){
-		this.create_supplychain();
-	}
 }
 
 util.inherits(ModuleBuilder, EventEmitter);
 
 module.exports = ModuleBuilder;
 
-ModuleBuilder.prototype.create_supplychain = function(type, config){
+ModuleBuilder.prototype.create_supplychain = function(www){
 	var self = this;
-	this.telegraft = telegraft.client(this.hq_endpoints);
+	
+	if(this.supplychain){
+		return this.supplychain;
+	}
+
 	this.reception_socket = this.telegraft.rpcclient('/reception');
 
 	/*
@@ -85,9 +78,8 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	*/
 
 	this.socket_pipe = function(req, reply){
-	
-		self.reception_socket.send(req, function(error, answer){
 
+		self.reception_socket.send(req, function(error, answer){
 			reply(error, answer)
 		});
 	
@@ -168,16 +160,51 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	*/
 	//this.supplychain.radio = this.telegraft.radio;
 
-	this.supplychain.rpc_server = RPCServer(self);
+	this.supplychain.rpc_server = function(route){
+		var RPCServer = require('./rpcserver');
+		return RPCServer(route, self);
+	}
+	
 
 	/*
 	
 		return the digger-serve that will host our websites
 		
-	*/
-	this.supplychain.www = WebServer(self);
+	*/	
+	this.supplychain.www = function(){
+		if(!www){
+			return null;
+		}
+		if(!www.app._diggerbound){
+			www.app._diggerbound = true;
+			// feed the request down the supplychain
+			www.app.on('digger:request', function(req, reply){
 
-	this.supplychain.build = _.bind(self.compile, self);
+				/*
+				
+					it is very important that we pass to external_handler here
+
+					this passes ONLY:
+
+						method
+						url
+						headers
+						body
+					
+				*/
+				self.external_handler(req, reply);
+			})	
+		}
+		
+
+		return www;
+	}
+
+	this.supplychain.build = function(){
+		var args = utils.toArray(arguments);
+		args.unshift(self.supplychain);
+		return self.compile.apply(self, args);
+	}
 
 	this.supplychain.filepath = function(filepath){
 		if(filepath.indexOf('/')==0){
@@ -185,6 +212,19 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 		}
 		return path.normalize(self.application_root + '/' + filepath);
 	}
+
+	return this.supplychain;
+}
+
+ModuleBuilder.prototype.compile_warehouse = function(module, moduleconfig){
+	var $digger = this.create_supplychain();
+	return this.compile($digger, module, moduleconfig);
+
+}
+
+ModuleBuilder.prototype.compile_app = function(module, moduleconfig, www){
+	var $digger = this.create_supplychain(www);
+	return this.compile($digger, module, moduleconfig);
 }
 
 /*
@@ -196,7 +236,7 @@ ModuleBuilder.prototype.create_supplychain = function(type, config){
 	if the type is 'code' then we are loading code from the application folder
 	
 */
-ModuleBuilder.prototype.compile = function(module, moduleconfig, custom_module){
+ModuleBuilder.prototype.compile = function($digger, module, moduleconfig, custom_module){
 	var self = this;
 	moduleconfig = moduleconfig || {};
 	config = moduleconfig.config || {};	
@@ -212,7 +252,7 @@ ModuleBuilder.prototype.compile = function(module, moduleconfig, custom_module){
 	}
 	else{
 		module_path = path.normalize(__dirname + '/modules/' + module + '.js');
-	
+
 		/*
 		
 			is the module actually code in the digger app
@@ -262,5 +302,5 @@ ModuleBuilder.prototype.compile = function(module, moduleconfig, custom_module){
 	// remove this or we get into a loop
 	delete(pass_config._diggermodule);
 	
-	return factory(pass_config, this.supplychain);
+	return factory(pass_config, $digger);
 }

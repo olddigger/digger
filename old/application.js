@@ -33,34 +33,10 @@ function Application(application_root){
 	this.websites = {};
 	this.application_root = path.normalize(application_root);
 	this.config = new Config(this.application_root);
-
-	this.config.on('loaded', function(path){
-		self.emit('loaded', path);
-	})
-
-	this.config.on('service', function(data){
-		self.emit('service', data);
-	})
-
-	this.config.on('node', function(data){
-		self.emit('node', data);
-	})
+	this.config.load();
 }
 
 util.inherits(Application, EventEmitter);
-
-Application.prototype.load = function(done){
-
-	var self = this;
-	
-	async.series([
-		function(next){
-			self.config.load(next);
-		}
-
-	], done)
-
-}
 
 Application.prototype.inspect = function(name){
 	var self = this;
