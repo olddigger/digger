@@ -36,7 +36,7 @@
  */
 
 var program = require('commander');
-var version = '1.1.8';
+var version = require(__dirname + '/../package.json').version;
 var fs = require('fs');
 var path = require('path');
 var exec = require('child_process').exec;

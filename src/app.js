@@ -102,9 +102,8 @@ function make_app(id, tools){
   var www = Server();
 
   www.app.on('digger:request', function(req, reply){
+    
     process.nextTick(function(){
-      console.log('-------------------------------------------');
-      console.log('running app');
       supplychain(req, function(error, answer){
         reply(error, answer);
       });  
