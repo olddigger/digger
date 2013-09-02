@@ -1,6 +1,6 @@
 {
   "name": "digger",
-  "version": "1.1.8",
+  "version": "1.2.0",
   "description": "command line tools for running digger nodes",
   "preferGlobal": "true",
   "bin": {
