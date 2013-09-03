@@ -82,7 +82,7 @@ module.exports = function(options){
     }
 
     var body = req.body || [];
-    var tag = req.body.length>0 ? (req.body[0]._digger ? req.body[0]._digger.tag : '') : '';
+    var tag = body.length>0 ? (body[0]._digger ? body[0]._digger.tag : '') : '';
 
     var parts = [
       new Date().getTime(),
