@@ -36,6 +36,7 @@
  */
 var fs = require('fs');
 var path = require('path');
+var wrench = require('wrench');
 
 module.exports = function(program){
   /*
