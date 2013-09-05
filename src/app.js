@@ -103,10 +103,6 @@ function make_app(id, tools){
 
   www.app.on('digger:request', function(req, reply){
     
-    console.log('-------------------------------------------');
-    console.log('-------------------------------------------');
-    console.log('web');
-    console.dir(req);
     process.nextTick(function(){
       supplychain(req, function(error, answer){
         reply(error, answer);
@@ -122,11 +118,34 @@ function make_app(id, tools){
 
   console.log('');
 
+  app_array.forEach(function(app_config){
+
+    var document_root = app_config.document_root ? 
+      tools.filepath(app_config.document_root) :
+      path.normalize(__dirname + '/../assets/www')
+
+    var app = www.express();
+
+    var domains = app_config.domains || [];
+    
+    var middleware = app_config.middleware;
+
+    app.use(function(req, res, next){
+      next();
+    })
+    app.use(www.express.static(document_root));
+
+    www.add_website(domains, app);
+
+    console.log('   mounting www: ' + app_config.id + ' -> ' + app_config.document_root);
+  })
+
   /*
   
     loop the app configs and create a virtual hosted express server
     
   */
+
   app_array.forEach(function(app_config){
 
     var app = www.express();
@@ -162,21 +181,11 @@ function make_app(id, tools){
         }
       }
 
-      /*
-      
-        digger middleware
-        
-      */
       if(middleware_settings.module=='digger'){
         var handler = www.digger_application(middleware_settings);
         app.use(route, handler);
         module_logs.push('          module: ' + route + ' -> digger');
       }
-      /*
-      
-        other middleware
-        
-      */
       else{
         var middleware_config = middleware_settings.config || {};
         middleware_config.id = route;
@@ -209,11 +218,7 @@ function make_app(id, tools){
         }
       }
     }
-    /*
     
-      middleware
-      
-    */
     for(var route in middleware){
       makemiddleware(route);
     }
@@ -238,7 +243,6 @@ function make_app(id, tools){
     console.log('-------------------------------------------');
     console.log('HTTP listening on port: ' + port);
   })
-
-  return www;
   
+  return www;
 }
