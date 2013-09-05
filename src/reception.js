@@ -90,6 +90,9 @@ function make_reception(tools){
 
   server_socket.on('request', function(req, reply){
 
+    console.log('-------------------------------------------');
+    console.log('reception');
+    console.dir(req);
     reception(req, function(error, answer){
 
       process.nextTick(function(){

@@ -103,6 +103,10 @@ function make_app(id, tools){
 
   www.app.on('digger:request', function(req, reply){
     
+    console.log('-------------------------------------------');
+    console.log('-------------------------------------------');
+    console.log('web');
+    console.dir(req);
     process.nextTick(function(){
       supplychain(req, function(error, answer){
         reply(error, answer);
