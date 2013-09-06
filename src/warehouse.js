@@ -141,7 +141,7 @@ function make_warehouse(id, tools){
     console.log('          module: ' + route + ' -> ' + modulename);
 
     if(typeof(handler.on)==='function'){
-      handler.on('digger:action', logger.action);
+      //handler.on('digger:action', logger.action);
     }
 
     return handler;

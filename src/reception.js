@@ -80,8 +80,12 @@ function make_reception(tools){
   })
 
 
-  reception.on('digger:contract', function(req){
-    logger.reception(req);
+  reception.on('digger:contract:error', function(req, error){
+    logger.reception_error(req);
+  })
+
+  reception.on('digger:contract:results', function(req, results){
+    logger.reception_results(req);
   })
 
   reception.on('digger:request', function(req, reply){
@@ -103,7 +107,7 @@ function make_reception(tools){
   
 
   function warehouse_proxy(req, reply){
-    logger.request(req);
+    //logger.request(req);
 
     proxy_socket.send(req.url, req, reply);
   }

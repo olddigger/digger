@@ -27,7 +27,7 @@ module.exports = function(options){
     console.log(parts.join("\t"));
   }
 
-  function reception_logger(req){
+  function contract_summary(req){
     var reqs = (req.body || []).map(function(req){
       var headers = req.headers || {};
       if(headers['x-json-selector']){
@@ -41,12 +41,31 @@ module.exports = function(options){
       return req!==null;
     })
 
+    return reqs.join('');
+  }
+
+  function reception_error_logger(req, error){
+    var parts = [
+      new Date().getTime(),
+      'error',
+      req.headers['x-contract-type'],
+      (req.body || []).length,
+      req.headers['x-request-time'] + 'ms',
+      contract_summary(req),
+      error
+    ]
+    logger(parts);
+  }
+
+  function reception_results_logger(req, count){
     var parts = [
       new Date().getTime(),
       'contract',
       req.headers['x-contract-type'],
       (req.body || []).length,
-      reqs.join(' ')
+      req.headers['x-request-time'] + 'ms',
+      contract_summary(req),
+      count
     ]
     logger(parts);
   }
@@ -110,7 +129,8 @@ module.exports = function(options){
   return {
     array:logger,
     error:error_logger,
-    reception:reception_logger,
+    reception_error:reception_error_logger,
+    reception_results:reception_results_logger,
     action:action_logger,
     request:request_logger,
     provision:provision_logger
