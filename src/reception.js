@@ -80,18 +80,30 @@ function make_reception(tools){
   })
 
 
+  // log error
   reception.on('digger:contract:error', function(req, error){
-    logger.reception_error(req);
+    logger.reception_error(req, error);
   })
 
-  reception.on('digger:contract:results', function(req, results){
-    logger.reception_results(req);
+  // log symlinks
+  reception.on('digger:symlink', function(link){
+    logger.symlink(link);
   })
 
+  // log results
+  reception.on('digger:contract:results', function(req, count){
+    logger.reception_results(req, count);
+  })
+
+  // run a request back to warehouses
   reception.on('digger:request', function(req, reply){
+    if(!req.fromcontract){
+      logger.request(req);
+    }
     run_request(req, reply);
   });
 
+  // the incoming rpc socket
   server_socket.on('request', function(req, reply){
 
     reception(req, function(error, answer){

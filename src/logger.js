@@ -48,10 +48,7 @@ module.exports = function(options){
     var parts = [
       new Date().getTime(),
       'error',
-      req.headers['x-contract-type'],
-      (req.body || []).length,
-      req.headers['x-request-time'] + 'ms',
-      contract_summary(req),
+      req.url,
       error
     ]
     logger(parts);
@@ -94,7 +91,8 @@ module.exports = function(options){
     var data = '';
 
     if(type==='select'){
-      data = (req.selector || {}).string;
+      return;
+      //data = (req.selector || {}).string;
     }
     else{
       data = (req.body || []).length;
@@ -113,6 +111,18 @@ module.exports = function(options){
     logger(parts);
   }
 
+  function symlink_logger(link){
+    var parts = [
+      new Date().getTime(),
+      'symlink',
+      link.type,
+      link.warehouse,
+      link.diggerid || link.selector
+    ]
+
+    logger(parts);
+  }
+
   function request_logger(req){
     if(req.headers['x-reception']){
       return;
@@ -121,8 +131,13 @@ module.exports = function(options){
       new Date().getTime(),
       'packet',
       req.method.toLowerCase(),
-      req.url
+      req.url,
+      'body:' + (req.body ? req.body.length : 0)
     ]
+
+    if(req.headers['x-json-selector']){
+      parts.push(req.headers['x-json-selector'].string);
+    }
     logger(parts);
   }
 
@@ -133,6 +148,7 @@ module.exports = function(options){
     reception_results:reception_results_logger,
     action:action_logger,
     request:request_logger,
+    symlink:symlink_logger,
     provision:provision_logger
   }
 }

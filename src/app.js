@@ -238,11 +238,20 @@ function make_app(id, tools){
   })
 
   var port = tools.http_port();
-  www.server.listen(port, function(){
-    console.log('');
-    console.log('-------------------------------------------');
-    console.log('HTTP listening on port: ' + port);
-  })
+
+  /*
+  
+    give the mesh a chance to setup
+    
+  */
+  setTimeout(function(){
+    www.server.listen(port, function(){
+      console.log('');
+      console.log('-------------------------------------------');
+      console.log('HTTP listening on port: ' + port);
+    })  
+  }, 1000);
+  
   
   return www;
 }
