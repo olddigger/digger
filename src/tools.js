@@ -126,6 +126,44 @@ module.exports = function(program){
   }
 
   /*
+  
+    the path to the env json containing our quarry environment services
+
+    this does not list nodes (reception, app, warehouse) - they look after themselves
+
+    this lists:
+
+      * databases - mongo, redis,
+      * filesystem - home, app, storage
+      * keys - for api access
+    
+  */
+  function env_path(){
+    return application_root() + '/.digger';
+  }
+
+  function populate_env(done){
+    if(fs.existsSync(build_root() + '/env.json')){
+      var envtext = fs.readFileSync(build_root() + '/env.json', 'utf8');
+      var digger_env = JSON.parse(envtext);
+
+      for(var prop in digger_env){
+        // we let existing env vars take priority
+        // setting them here only lasts the process - hence having the file around
+        // how the file is generated is external to here
+        if(!process.env[prop]){
+          process.env[prop] = digger_env[prop];
+        }
+      }
+
+      done();
+    }
+    else{
+      done();
+    }
+  }
+
+  /*
 
     return the built json config for the application
     
@@ -147,16 +185,19 @@ module.exports = function(program){
     
   */
   function runbuild(done){
+
     if(program.built){
-      done();
+      populate_env(done);
       return;
     }
     var exec = require('child_process').exec;
-    console.log('   building...');
     var endpoints = hq_endpoints();
     var command = 'digger build -d ' + application_root() + ' -s ' + endpoints.server + ' -r ' + endpoints.radio;
     exec(command, function(error, results){
-      done(error, results);
+      if(error){
+        throw(error);
+      }
+      populate_env(done);
     });
   }
 

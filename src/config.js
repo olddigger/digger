@@ -44,7 +44,7 @@ function warehouse_services(config){
 		
 	};
 
-	if(config.type==='mongo'){
+	if(config.module==='mongo'){
 		ret.mongo = true;
 	}
 
@@ -63,6 +63,7 @@ function app_services(config){
 }
 
 module.exports = function(application_root){
+
 	var config_path = path.normalize(application_root + '/digger.yaml');
 
 	if(!fs.existsSync(config_path)){
