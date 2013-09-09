@@ -122,39 +122,127 @@ module.exports = function(program){
     
   */
   function build_root(){
-    return application_root() + '/.digger';
+    return application_root() + '/.quarry';
+  }
+
+  function ensure_compile_structure(){
+    var config = get_stack_config();
+    var utils = require('digger-utils');
+
+    // the start of the environment
+    var default_env = {
+      DIGGER_STACK_ID:config.name + ':' + utils.littleid()
+    }
+
+    // the things we should only have to boot once
+    if(!fs.existsSync(build_root() + '/services')){
+      wrench.mkdirSyncRecursive(build_root() + '/services', 0777);
+    }
+
+    if(!fs.existsSync(build_root() + '/nodes')){
+      wrench.mkdirSyncRecursive(build_root() + '/nodes', 0777);
+    }
+
+    // stack wide environment variables written one value per named file
+    if(!fs.existsSync(build_root() + '/env')){
+      wrench.mkdirSyncRecursive(build_root() + '/env', 0777);
+    }
+
+    for(var prop in default_env){
+      if(!fs.existsSync(build_root() + '/env/' + prop)){
+        fs.writeFileSync(build_root() + '/env/' + prop, default_env[prop], 'utf8');
+        process.env[prop] = default_env[prop];
+      }
+    }
+
   }
 
   /*
   
-    the path to the env json containing our quarry environment services
+    if there is already a folder for the service
+    it means we are already running it
 
-    this does not list nodes (reception, app, warehouse) - they look after themselves
+    we check that by looking at the services/<name>/PID file
+    (which has the container id of the service)
 
-    this lists:
+    if it does not exist - we create a new service for them
 
-      * databases - mongo, redis,
-      * filesystem - home, app, storage
-      * keys - for api access
+    if it does - we check that service is running
+    
+  */
+  function compile_services(services){
+    for(var i in services){
+      if(!fs.existsSync(build_root() + '/services/' + i)){
+        fs.writeFileSync(build_root() + '/services/' + i, '', 'utf8');
+      }
+    }
+  }
+
+  function compile_warehouses(warehouses){
+    for(var i in warehouses){
+      var name = 'warehouse_' + i.replace(/^\//, '').replace(/\//g, '_').replace(/\W/g, '');
+      var command = 'digger warehouse ' + i;
+      fs.writeFileSync(build_root() + '/nodes/' + name, command, 'utf8');
+    }
+
+    var command = 'digger warehouses';
+    fs.writeFileSync(build_root() + '/nodes/warehouses', command, 'utf8');
+  }
+
+  function compile_apps(apps){
+    for(var i in apps){
+      var name = 'app_' + i;
+      var command = 'digger app ' + i;
+      fs.writeFileSync(build_root() + '/nodes/' + name, command, 'utf8');
+    }
+
+    var command = 'digger apps';
+    fs.writeFileSync(build_root() + '/nodes/apps', command, 'utf8');
+  }
+
+
+  function compile(){
+    
+    var config = get_stack_config();
+
+    ensure_compile_structure();
+
+    console.log('');
+    console.log('   compiling: ' + process.env.DIGGER_STACK_ID);
+
+    compile_services(config.services);
+    compile_warehouses(config.warehouses);
+    compile_apps(config.apps);
+
+    var receptioncommand = 'digger reception';
+    fs.writeFileSync(build_root() + '/nodes/reception', receptioncommand, 'utf8');
+
+    var allcommand = 'digger run';
+    fs.writeFileSync(build_root() + '/nodes/all', allcommand, 'utf8');
+  }
+
+  /*
+  
+    part of the .digger folder is an env folder with named files containing env vars
+    to be used across the whole stack
+
+    when we build a static service its details are written to the environment here
     
   */
   function env_path(){
-    return application_root() + '/.digger';
+    return build_root() + '/env';
   }
 
   function populate_env(done){
-    if(fs.existsSync(build_root() + '/env.json')){
-      var envtext = fs.readFileSync(build_root() + '/env.json', 'utf8');
-      var digger_env = JSON.parse(envtext);
+    
+    if(fs.existsSync(env_path())){
 
-      for(var prop in digger_env){
-        // we let existing env vars take priority
-        // setting them here only lasts the process - hence having the file around
-        // how the file is generated is external to here
-        if(!process.env[prop]){
-          process.env[prop] = digger_env[prop];
-        }
-      }
+      var files = fs.readdirSync(env_path());
+
+      (files || []).forEach(function(file){
+        var envtext = fs.readFileSync(env_path() + '/' + file, 'utf8');        
+        process.env[file] = envtext;
+      })
 
       done();
     }
@@ -185,6 +273,7 @@ module.exports = function(program){
     
   */
   function runbuild(done){
+
 
     if(program.built){
       populate_env(done);
@@ -217,6 +306,11 @@ module.exports = function(program){
 
     if(!fs.existsSync(build_root())){
       wrench.mkdirSyncRecursive(build_root(), 0777);
+
+    }
+
+    if(!fs.existsSync(build_root() + '/env')){
+      wrench.mkdirSyncRecursive(build_root() + '/env', 0777);
     }
 
     var endpoints = hq_endpoints();
@@ -289,8 +383,71 @@ module.exports = function(program){
     return $digger;
   }
 
+  function info_logger(){
+
+    var default_ports = {
+      redis:6379,
+      mongo:27017
+    }
+
+    var config = get_stack_config();
+
+    console.log('');
+    console.log('   * application root:         ' + config.application_root);      
+    if(config.reception.router){
+    console.log('   * reception router:         ' + config.reception.router);
+    }
+    console.log('   * hq:         ');
+    console.log('       server:                 ' + config.hq_endpoints.server);
+    console.log('       radio:                  ' + config.hq_endpoints.radio);
+    console.log('   * services:');
+    for(var service in config.services){
+      console.log('     * ' + service);
+      var prefix = 'DIGGER_' + service.toUpperCase();
+      var host = process.env[prefix + '_HOST'];
+      if(!host){
+        host = '127.0.0.1';
+      }
+      var port = process.env[prefix + '_PORT'];
+      if(!port){
+        port = default_ports[service];
+      }
+
+      console.log('       host:                   ' + host);
+      console.log('       port:                   ' + port);
+    }
+    console.log('   * warehouses:         ');
+    function logwarehouse(name, warehouse){
+      var wconfig = warehouse.config;
+      console.log('     * ' + name);
+      for(var k in wconfig){
+        console.log('       ' + k + ': ' + wconfig[k]);
+      }
+    }
+    function logapp(name, app){
+      var aconfig = app;
+
+      console.log('     * ' + name);
+      console.log('     * ' + app.document_root);
+      (aconfig.domains || []).forEach(function(d){
+        console.log('         * ' + d);
+      })
+      
+    }
+    for(var warehouse in config.warehouses){
+      logwarehouse(warehouse, config.warehouses[warehouse]);
+    }
+    console.log('   * apps:         ');
+    for(var app in config.apps){
+      logapp(app, config.apps[app]);
+    }
+
+  }
+
 
   return {
+    compile:compile,
+    info_logger:info_logger,
     hq_endpoints:hq_endpoints,
     node_endpoint:node_endpoint,
     http_port:http_port,

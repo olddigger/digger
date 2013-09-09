@@ -40,7 +40,7 @@
     "goauth": "~0.0.1",
     "digger-client": "~0.0.3",
     "async": "~0.2.9",
-    "digger-utils": "~1.0.4",
+    "digger-utils": "~1.0.7",
     "digger-warehouse": "~0.1.0",
     "wrench": "~1.5.1"
   }

@@ -125,6 +125,7 @@ module.exports = function(application_root){
   }
 
   return {
+  	name:(application_root || '').split('/').pop(),
   	application_root:application_root,
   	services:services,
   	reception:reception,
