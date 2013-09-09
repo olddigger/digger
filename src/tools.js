@@ -139,10 +139,6 @@ module.exports = function(program){
       wrench.mkdirSyncRecursive(build_root() + '/services', 0777);
     }
 
-    if(!fs.existsSync(build_root() + '/nodes')){
-      wrench.mkdirSyncRecursive(build_root() + '/nodes', 0777);
-    }
-
     // stack wide environment variables written one value per named file
     if(!fs.existsSync(build_root() + '/env')){
       wrench.mkdirSyncRecursive(build_root() + '/env', 0777);
@@ -225,12 +221,20 @@ module.exports = function(program){
     console.log('');
     console.log('   compiling: ' + process.env.DIGGER_STACK_ID);
 
-    compile_services(config.services);
-    compile_warehouses(config.warehouses);
-    compile_apps(config.apps);
+    var command = 'digger apps';
 
-    var allcommand = 'digger run';
-    fs.writeFileSync(build_root() + '/nodes/all', allcommand, 'utf8');
+    compile_services(config.services);
+
+    if(config.counters.warehouses>0){
+      compile_warehouses(config.warehouses);
+      command = 'digger run';
+    }
+
+    if(config.counters.apps>0){
+      compile_apps(config.apps);
+    }
+
+    fs.writeFileSync(build_root() + '/bootstrap', command, 'utf8');
   }
 
   /*

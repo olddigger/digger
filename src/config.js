@@ -72,6 +72,10 @@ module.exports = function(application_root){
 	}
 
 	var apps = {};
+	var counters = {
+		warehouses:0,
+		apps:0
+	};
 	var warehouses = {};
 	var reception = {};
 	var services = {
@@ -83,6 +87,7 @@ module.exports = function(application_root){
 			reception = config;
 		}
 		else{
+			counters.warehouses++;
 			warehouses[id] = config;
 			var addservices = warehouse_services(config);
 			for(var prop in addservices){
@@ -92,6 +97,7 @@ module.exports = function(application_root){
 	}
 
 	function add_app(id, config){
+		counters.apps++;
 		apps[id] = config;
 		var addservices = app_services(config);
 		for(var prop in addservices){
@@ -125,6 +131,7 @@ module.exports = function(application_root){
   }
 
   return {
+  	counters:counters,
   	name:(application_root || '').split('/').pop(),
   	application_root:application_root,
   	services:services,
