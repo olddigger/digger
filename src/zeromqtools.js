@@ -71,7 +71,7 @@ module.exports = function(program){
     }
     var port = process.env.DIGGER_NODE_PORT || defs[type];
     process.env.DIGGER_NODE_PORT = port+1;
-    return 'tcp://' + (process.env.DIGGER_NODE_HOST || '127.0.0.1') + ':' + port;
+    return 'tcp://' + (process.env.DIGGER_HQ_HOST || '127.0.0.1') + ':' + port;
   }
 
   /*
@@ -179,7 +179,6 @@ module.exports = function(program){
   }
 
   function compile_warehouses(warehouses){
-    /*
     for(var i in warehouses){
       var name = 'warehouse_' + i.replace(/^\//, '').replace(/\//g, '_').replace(/\W/g, '');
       var command = 'digger warehouse ' + i;
@@ -188,22 +187,9 @@ module.exports = function(program){
 
     var command = 'digger warehouses';
     fs.writeFileSync(build_root() + '/nodes/warehouses', command, 'utf8');
-    */
   }
 
   function compile_apps(apps){
-    var alldomains = [];
-    for(var i in apps){
-      var app = apps[i];
-
-      (app.domains || []).forEach(function(domain){
-        alldomains.push(domain);
-      })
-    }
-
-    fs.writeFileSync(build_root() + '/domains', alldomains.join("\n"), 'utf8');
-
-    /*
     for(var i in apps){
       var name = 'app_' + i;
       var command = 'digger app ' + i;
@@ -212,7 +198,6 @@ module.exports = function(program){
 
     var command = 'digger apps';
     fs.writeFileSync(build_root() + '/nodes/apps', command, 'utf8');
-    */
   }
 
 
@@ -228,6 +213,9 @@ module.exports = function(program){
     compile_services(config.services);
     compile_warehouses(config.warehouses);
     compile_apps(config.apps);
+
+    var receptioncommand = 'digger reception';
+    fs.writeFileSync(build_root() + '/nodes/reception', receptioncommand, 'utf8');
 
     var allcommand = 'digger run';
     fs.writeFileSync(build_root() + '/nodes/all', allcommand, 'utf8');
