@@ -42,6 +42,7 @@
     "async": "~0.2.9",
     "digger-utils": "~1.0.7",
     "digger-warehouse": "~0.1.0",
-    "wrench": "~1.5.1"
+    "wrench": "~1.5.1",
+    "fastworks": "~0.3.20"
   }
 }

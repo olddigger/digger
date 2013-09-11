@@ -34,101 +34,27 @@
 /**
  * Module dependencies.
  */
-var path = require('path');
 
-/*
-
-  ----------------------------------------------------------------------------------  
-
-
-  APP
-
-  a front facing HTTP + socket server that writes over a /reception socket
-  to speak to warehouses
-
-
-  ----------------------------------------------------------------------------------
-  
-*/
 
 module.exports = make_reception;
 
-function make_reception(tools){
+function make_reception($digger){
 
-  var Logger = require('../src/logger');
-  var logger = Logger();
+  var logger = require('./logger');
+  
   var utils = require('digger-utils');
-
-  var telegraft = require('telegraft');
-  var graft = telegraft.client(tools.hq_endpoints());
 
   var Reception = require('digger-reception');
   var reception = Reception();
 
-  var stack_config = tools.get_stack_config();
+  var stack_config = $digger.stack_config;
   var config = stack_config.reception;
-
-  // the proxy onto the backend warehouses
-  var proxy_socket = graft.rpcproxy();
-
-  // the server socket for things coming from the web
-  var endpoint = tools.node_endpoint('reception');
-  var server_socket = graft.rpcserver({
-    id:utils.littleid(),
-    protocol:'rpc',
-    address:endpoint
-  })
-
-
-  // log error
-  reception.on('digger:contract:error', function(req, error){
-    logger.reception_error(req, error);
-  })
-
-  // log symlinks
-  reception.on('digger:symlink', function(link){
-    logger.symlink(link);
-  })
-
-  // log results
-  reception.on('digger:contract:results', function(req, count){
-    logger.reception_results(req, count);
-  })
-
-  // run a request back to warehouses
-  reception.on('digger:request', function(req, reply){
-    if(!req.fromcontract){
-      logger.request(req);
-    }
-    run_request(req, reply);
-  });
-
-  // the incoming rpc socket
-  server_socket.on('request', function(req, reply){
-
-    reception(req, function(error, answer){
-
-      process.nextTick(function(){
-        reply(error, answer);
-      })
-      
-    });
-  });
-
-  server_socket.bind('/reception');
-  
-
-  function warehouse_proxy(req, reply){
-    //logger.request(req);
-
-    proxy_socket.send(req.url, req, reply);
-  }
 
   var router = null;
 
+  // if they have specified a router - build it
   if(config.router){
-    var $digger = tools.get_reception_digger();
-
+    
     if(typeof(config.router)==='string'){
       config.router = {
         module:config.router,
@@ -137,13 +63,21 @@ function make_reception(tools){
     }
 
     console.log('');
-    console.log('   mounting reception: ' + endpoint);
     console.log('   mounting reception router: ' + config.router.module);
     console.log('');
 
     router = $digger.build($digger.filepath(config.router.module), config.router.config, true);
   }
 
+  // we emit the request and let the containing network sort it out
+  function warehouse_proxy(req, reply){
+    //logger.request(req);
+
+    reception.emit('digger:warehouse', req, reply);
+  }
+
+  // this runs via the router if defined
+  // otherwises back to the warehouses
   function run_request(req, reply){
     if(router){
       router(req, function(error, answer){
@@ -164,6 +98,28 @@ function make_reception(tools){
     }
   }
 
+    // log error
+  reception.on('digger:contract:error', function(req, error){
+    logger.reception_error(req, error);
+  })
+
+  // log symlinks
+  reception.on('digger:symlink', function(link){
+    logger.symlink(link);
+  })
+
+  // log results
+  reception.on('digger:contract:results', function(req, count){
+    logger.reception_results(req, count);
+  })
+
+  // run a request back to warehouses
+  reception.on('digger:request', function(req, reply){
+    if(!req.fromcontract){
+      logger.request(req);
+    }
+    run_request(req, reply);
+  })
 
 
   return reception;

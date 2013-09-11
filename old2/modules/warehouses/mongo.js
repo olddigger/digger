@@ -3,8 +3,8 @@
 	we boot the given warehouse module
 	
 */
-
+var Mongo = require('digger-mongo');
 
 module.exports = function(config, $digger){
-	return $digger.digger_application(config);
+	return Mongo(config);
 }

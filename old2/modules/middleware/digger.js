@@ -6,5 +6,5 @@
 
 
 module.exports = function(config, $digger){
-	return $digger.digger_application(config);
+	return $digger.www.digger_application(config);
 }
