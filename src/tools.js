@@ -221,6 +221,7 @@ module.exports = function(program){
     console.log('');
     console.log('   compiling: ' + process.env.DIGGER_STACK_ID);
 
+    // if they have no warehouses then only run the apps part
     var command = 'digger apps';
 
     compile_services(config.services);

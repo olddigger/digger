@@ -118,6 +118,7 @@ function make_app(id, tools){
 
   console.log('');
 
+/*
   app_array.forEach(function(app_config){
 
     var document_root = app_config.document_root ? 
@@ -139,7 +140,7 @@ function make_app(id, tools){
 
     console.log('   mounting www: ' + app_config.id + ' -> ' + app_config.document_root);
   })
-
+*/
   /*
   
     loop the app configs and create a virtual hosted express server
