@@ -16,6 +16,8 @@ module.exports = function(program){
   var stack_config = require(config_path);
 
   // populate the env
+  // this will come from outside now
+  /*
   if(fs.existsSync(env_path)){
 
     var files = fs.readdirSync(env_path);
@@ -25,6 +27,7 @@ module.exports = function(program){
       process.env[file] = envtext;
     })
   }
+  */
 
   return {
     http_port:process.env.DIGGER_HTTP_PORT || 80,
