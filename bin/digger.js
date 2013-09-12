@@ -8,6 +8,7 @@ var program = require('commander');
 
 program
   .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
+  .option('-t, --transport <string>', 'the filename of the transport module to use', 'js')
   .option('-rh, --redishost <string>', 'the hostname for the redis service', '.')
   .option('-rp, --redisport <string>', 'the port for the redis service', '.')
   .option('-mh, --mongohost <string>', 'the hostname for the mongo service', '.')
@@ -25,7 +26,10 @@ program
   .command('run')
   .description('run the digger stack')
   .action(function(){
-    require('../src/stack')(program);
+    var Stack = require('../src/index').stack();
+
+    Stack(program);
+    
   })
 
 program

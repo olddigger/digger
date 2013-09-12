@@ -3,7 +3,7 @@ module.exports = function(program){
 	var fs = require('fs');
   var path = require('path');
 
-	var application_root = tools.application_root();
+	var application_root = tools.application_root(program);
   var quarry_root = application_root + '/.quarry';
   var config_path = quarry_root + '/digger.json';
   var env_path = quarry_root + '/env';

@@ -1,42 +1,43 @@
+/*
+
+  text
+  
+*/
 module.exports = function(program){
 
-	var Reception = require('./reception');
-  var Apps = require('./apps');
+  var Digger = require('./digger');
 
-  var utils = require('digger-utils');
-	var Client = require('digger-client');
-	var Build = require('./buildmodule');
-	var Runtime = require('./runtime');
-	var runtime = Runtime(program);
-	var stack_config = runtime.stack_config;
+  var Reception = require('./reception');
+  var App = require('./app');
+  var Warehouse = require('./warehouse');
 
-	// our reception handler
-	var reception = null;
+  var $digger = Digger(program);
 
-	// make a digger that flags requests as internal
-	// it then speaks to reception front door
-	var $digger = Client(function(req, reply){
-    req.internal = true;
-    if(!reception){
-    	reply('reception is not ready');
-    	return;
-    }
-    reception(req, reply);
+  var reception = Reception($digger);
+  var warehouses = Warehouse($digger);
+  var app = App($digger);
+
+  // pipe general requests to reception
+  $digger.on('digger:request', function(req, res){
+    process.nextTick(function(){
+      reception(req, res);
+    })
   });
 
-	$digger.program = program;
-	$digger.runtime = runtime;
-	$digger.stack_config = stack_config;
-  $digger.application_root = runtime.application_root;
-  $digger.filepath = runtime.filepath;
-  $digger.build = function(){
-    var args = utils.toArray(arguments);
-    args.unshift(this);
-    return Build.apply(null, args);
-  }
+  // requests going back to warehouses from reception
+  reception.on('digger:warehouse', function(req, res){
 
-  reception = Reception($digger);
+    process.nextTick(function(){
+      warehouses(req, function(error, results){        
+        res(error, results)
+      });
+    })
+  })
 
-  apps = Apps($digger);
+  // an event has happend in a warehouse - send to switchboard
+  warehouses.on('digger:radio', function(type, packet){
+    
+  })
+
 
 }

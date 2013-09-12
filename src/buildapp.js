@@ -49,6 +49,7 @@ module.exports = function(program){
   }
 
   var alldomains = [];
+
   for(var i in (stack_config.apps || {})){
     var app = stack_config.apps[i];
 

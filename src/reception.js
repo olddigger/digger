@@ -41,7 +41,6 @@ module.exports = make_reception;
 function make_reception($digger){
 
   var logger = require('./logger');
-  
   var utils = require('digger-utils');
 
   var Reception = require('digger-reception');

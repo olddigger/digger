@@ -26,7 +26,7 @@
     "mocha": "*"
   },
   "dependencies": {
-    "digger-serve": "~0.0.1",
+    "digger-serve": "~0.1.0",
     "digger-reception": "~0.1.0",
     "digger-mongo": "~0.0.4",
     "digger-static": "~0.0.1",
@@ -38,7 +38,6 @@
     "ejs": "~0.8.4",
     "goauth": "~0.0.1",
     "async": "~0.2.9",
-    "wrench": "~1.5.1",
-    "node-static": "~0.7.1"
+    "wrench": "~1.5.1"
   }
 }

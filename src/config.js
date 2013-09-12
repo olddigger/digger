@@ -57,9 +57,16 @@ function warehouse_services(config){
 	
 */
 function app_services(config){
-	return {
+	var ret = {
 		
 	};
+
+	// if the app has middleware - we assume they will want a redis cache
+	if(config.middleware && Object.keys(config.middleware).length>0){
+		ret.redis = true;
+	}
+
+	return ret;
 }
 
 module.exports = function(application_root){
@@ -74,7 +81,7 @@ module.exports = function(application_root){
 	var warehouses = {};
 	var reception = {};
 	var services = {
-		redis:true
+		
 	};
 
 	function add_warehouse(id, config){
@@ -92,6 +99,7 @@ module.exports = function(application_root){
 
 	function add_app(id, config){
 		apps[id] = config;
+
 		var addservices = app_services(config);
 		for(var prop in addservices){
 			services[prop] = addservices[prop];

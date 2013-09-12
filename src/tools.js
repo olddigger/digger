@@ -10,6 +10,8 @@ function application_root(program){
   if(!program){
     return process.cwd();
   }
+  
+  var fs = require('fs');
 
   var app_root = program.dir;
 
