@@ -62,11 +62,7 @@ module.exports = function(program){
   alldomains.push('');
   fs.writeFileSync(build_root + '/domains', alldomains.join("\n"), 'utf8');
 
-  var command = 'digger apps';
-
-  if(allroutes.length>0){
-    command = 'digger run';
-  }
+  var command = 'digger run';
 
   fs.writeFileSync(build_root + '/bootstrap', command, 'utf8');
   fs.writeFileSync(build_root + '/digger.json', JSON.stringify(stack_config, null, 4), 'utf8');
