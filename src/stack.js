@@ -6,12 +6,19 @@
 module.exports = function(program){
 
   var Digger = require('./digger');
-
-  var Reception = require('./reception');
   var App = require('./app');
-  var Warehouse = require('./warehouse');
 
   var $digger = Digger(program);
+  var config = $digger.stack_config;
+
+  // website only
+  if(Object.keys(config.warehouses||{})<=0){
+    App($digger)
+    return;
+  }
+
+  var Reception = require('./reception');
+  var Warehouse = require('./warehouse');
 
   var reception = Reception($digger);
   var warehouses = Warehouse($digger);

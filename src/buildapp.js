@@ -58,6 +58,8 @@ module.exports = function(program){
     })
   }
 
+  // we want a blank line on the end because I am shit at bash scripts and it misses the last line
+  alldomains.push('');
   fs.writeFileSync(build_root + '/domains', alldomains.join("\n"), 'utf8');
 
   var command = 'digger apps';
