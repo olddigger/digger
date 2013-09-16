@@ -26,6 +26,7 @@
     "mocha": "*"
   },
   "dependencies": {
-    "digger-stack": "~0.0.4"
+    "digger-stack": "~0.0.4",
+    "commander": "~2.0.0"
   }
 }
