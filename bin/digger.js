@@ -5,6 +5,7 @@
  */
 var version = require(__dirname + '/../package.json').version;
 var program = require('commander');
+var Stack = require('digger-stack');
 
 program
   .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
@@ -19,16 +20,19 @@ program
   .command('build')
   .description('build the app into a quarry stack')
   .action(function(){
-    require('../src/buildapp')(program);
+
+    var builder = Stack.appbuilder();
+    builder(program);
+
   })
 
 program
   .command('run')
   .description('run the digger stack')
   .action(function(){
-    var Stack = require('../src/index').stack();
 
-    Stack(program);
+    var runner = Stack.runner();
+    runner(program);
     
   })
 
@@ -37,8 +41,8 @@ program
   .description('list info about the current stack')
   .action(function(){
 
-    require('../src/infologger')(program);
-
+    var info = Stack.appinfo();
+    info(program);
 
   })
 

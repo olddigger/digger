@@ -26,18 +26,6 @@
     "mocha": "*"
   },
   "dependencies": {
-    "digger-serve": "~0.1.0",
-    "digger-reception": "~0.1.0",
-    "digger-mongo": "~0.0.4",
-    "digger-static": "~0.0.1",
-    "digger-client": "~0.0.3",
-    "digger-utils": "~1.0.7",
-    "digger-warehouse": "~0.1.0",
-    "commander": "~2.0.0",
-    "js-yaml": "~2.1.0",
-    "ejs": "~0.8.4",
-    "goauth": "~0.0.1",
-    "async": "~0.2.9",
-    "wrench": "~1.5.1"
+    "digger-stack": "~0.0.4"
   }
 }
