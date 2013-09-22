@@ -1,6 +1,6 @@
 # digger
 
-command line tools to run a [digger.io](https://github.com/binocarlos/digger.io) network
+a database digging machine
 
 ## installation
 
