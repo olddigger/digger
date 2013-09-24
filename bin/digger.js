@@ -31,6 +31,8 @@ program
   .description('run the digger stack')
   .action(function(){
 
+    var builder = Stack.appbuilder();
+    builder(program);
     var runner = Stack.runner();
     runner(program);
     
