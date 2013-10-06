@@ -22,7 +22,9 @@ program
   .action(function(){
 
     var builder = Stack.appbuilder();
-    builder(program);
+    builder(program, function(){
+      console.log('done');
+    });
 
   })
 
