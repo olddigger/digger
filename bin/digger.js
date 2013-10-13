@@ -17,9 +17,13 @@ program
   .version(version)
 
 program
-  .command('build')
+  .command('build [trim]')
   .description('build the app into a quarry stack')
-  .action(function(){
+  .action(function(trim){
+
+    if(trim){
+      process.env.NODE_ENV=trim;
+    }
 
     var builder = Stack.appbuilder();
     builder(program, function(){
