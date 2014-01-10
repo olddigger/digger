@@ -2,7 +2,7 @@
 
 a database system that has a JQuery style API
 
-ALPHA and broken! - by the start of March 2014 I will have done installation instructions, examples and such other important things
+ALPHA and broken! - by the start of March 2014 I will have done installation instructions, examples and such other important things - help is always welcome : )
 
 ##Quickstart
 
