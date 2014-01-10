@@ -9,11 +9,6 @@ var Stack = require('digger-stack');
 
 program
   .option('-d, --dir <string>', 'the folder the digger.yaml file lives in', '.')
-  .option('-t, --transport <string>', 'the filename of the transport module to use', 'js')
-  .option('-rh, --redishost <string>', 'the hostname for the redis service', '.')
-  .option('-rp, --redisport <string>', 'the port for the redis service', '.')
-  .option('-mh, --mongohost <string>', 'the hostname for the mongo service', '.')
-  .option('-mp, --mongoport <string>', 'the port for the mongo service', '.')
   .version(version)
 
 program
@@ -59,19 +54,10 @@ program
 
     var spawn = require('child_process').spawn;
 
-    var diggerhelp = spawn('digger', ['--help']);
-
-    diggerhelp.stdout.on('data', function (data) {
-      console.log(data.toString());
+    spawn('digger', ['--help'], {
+      stdio: 'inherit'
     });
 
-    diggerhelp.stderr.on('data', function (data) {
-      console.log('stderr: ' + data);
-    });
-
-    diggerhelp.on('close', function (code) {
-
-    });
   });
 
 if(process.argv.length<=2){

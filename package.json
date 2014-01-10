@@ -3,6 +3,7 @@
   "version": "1.2.26",
   "description": "command line tools for running digger nodes",
   "preferGlobal": "true",
+  "main":"src/index.js",
   "bin": {
     "digger": "bin/digger.js"
   },
